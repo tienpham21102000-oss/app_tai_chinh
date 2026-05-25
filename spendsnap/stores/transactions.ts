@@ -40,6 +40,7 @@ type State = {
   addFromDraft: (draft: Draft) => Promise<void>;
   deleteTransaction: (id: string) => Promise<void>;
   resetAll: () => Promise<void>;
+  seedDummyTransactions: (transactions: Transaction[]) => void;
 };
 
 export const useTransactionsStore = create<State>((set, get) => ({
@@ -107,6 +108,10 @@ export const useTransactionsStore = create<State>((set, get) => ({
     await ensureDbReady();
     await deleteDbTransaction(id);
     await get().refreshAll();
+  },
+
+  seedDummyTransactions: (transactions) => {
+    set({ transactions });
   },
 
   resetAll: async () => {
