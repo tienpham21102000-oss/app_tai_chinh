@@ -24,7 +24,7 @@ export async function extractTransactionFromReceiptImage(
     "Analyze the receipt image to extract the following transaction details for personal accounting. " +
     "The receipts are typically in Vietnamese or English. " +
     "Guidelines: " +
-    "1. For the 'amount', find the final total amount paid (e.g., 'TỔNG CỘNG', 'Thanh toán', 'Total', 'Tổng tiền', 'Thành tiền', 'Khách trả', 'Tiền mặt'). If there are multiple totals (like subtotal, discount, final total), always extract the final paid total. If it uses 'k' or 'K' (e.g., '50k', '120k'), multiply it by 1000 to get the exact integer. Extract as a number in VND (do not include currency symbols or dots, e.g., 75000). " +
+    "1. For the 'amount', find the final total amount paid (e.g., 'TỔNG CỘNG', 'Thanh toán', 'Total', 'Tổng tiền', 'Thành tiền', 'Khách trả', 'Tiền mặt'). If there are multiple totals (like subtotal, discount, final total), always extract the final paid total. If it uses 'k' or 'K' (e.g., '50k', '120k'), multiply it by 1000 to get the exact integer. If the text shows a plain number without a unit, treat it as thousands of VND, so 200 means 200000. Extract as a number in VND (do not include currency symbols or dots, e.g., 75000). " +
     "2. For 'merchant', look at the header of the receipt to identify the store or company name (e.g., 'Highlands Coffee', 'Circle K', 'Grab', 'Bách Hóa Xanh'). " +
     "3. For 'category', classify the receipt into one of these: 'Food', 'Drinks', 'Transport', 'Shopping', 'Entertainment', 'Bills', 'Others'. " +
     "4. For 'note', provide a short summary of the items purchased (e.g., '2 Cà phê đá', 'Bánh mì + Pepsi', 'Đi siêu thị'). " +

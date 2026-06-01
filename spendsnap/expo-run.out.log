@@ -1,0 +1,5 @@
+env: load .env
+env: export EXPO_PUBLIC_OPENAI_API_KEY
+Starting project at D:\app_tai_chinh\spendsnap
+Starting Metro Bundler
+warning: Bundler cache is empty, rebuilding (this may take a minute)

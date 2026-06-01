@@ -1,4 +1,3 @@
-import { uuid } from "./uuid";
 import type { Transaction } from "../stores/transactions";
 
 const CATEGORY_CONFIG = [
@@ -60,26 +59,25 @@ const CATEGORY_CONFIG = [
   },
 ];
 
-function randomInt(min: number, max: number): number {
-  return Math.floor(Math.random() * (max - min + 1)) + min;
+function createRng(seed: number) {
+  let state = seed >>> 0;
+  return () => {
+    state = (1664525 * state + 1013904223) >>> 0;
+    return state / 0x100000000;
+  };
 }
 
-function pick<T>(items: T[]): T {
-  return items[Math.floor(Math.random() * items.length)];
+function randomInt(rng: () => number, min: number, max: number): number {
+  return Math.floor(rng() * (max - min + 1)) + min;
 }
 
-function randomDateWithinYear(): Date {
-  const now = new Date();
-  const daysAgo = randomInt(0, 364);
-  const date = new Date(now);
-  date.setDate(now.getDate() - daysAgo);
-  date.setHours(randomInt(8, 22), randomInt(0, 59), randomInt(0, 59), 0);
-  return date;
+function pick<T>(rng: () => number, items: T[]): T {
+  return items[Math.floor(rng() * items.length)];
 }
 
-function pickCategory(): typeof CATEGORY_CONFIG[number] {
+function pickCategory(rng: () => number): typeof CATEGORY_CONFIG[number] {
   const totalWeight = CATEGORY_CONFIG.reduce((sum, item) => sum + item.weight, 0);
-  let target = Math.random() * totalWeight;
+  let target = rng() * totalWeight;
   for (const item of CATEGORY_CONFIG) {
     target -= item.weight;
     if (target <= 0) return item;
@@ -87,31 +85,44 @@ function pickCategory(): typeof CATEGORY_CONFIG[number] {
   return CATEGORY_CONFIG[CATEGORY_CONFIG.length - 1];
 }
 
-export function generateYearOfSpending(): Transaction[] {
-  const count = 260;
+export function generateFixedSpendingYears(): Transaction[] {
+  const rng = createRng(20260601);
   const transactions: Transaction[] = [];
 
-  for (let i = 0; i < count; i += 1) {
-    const category = pickCategory();
-    const date = randomDateWithinYear();
-    const amount = Math.max(0, Math.round(randomInt(category.min, category.max) / 1000) * 1000);
-    const merchant = pick(category.merchants);
-    const note = pick(category.notes);
+  for (let year = 2022; year <= 2026; year += 1) {
+    for (let month = 0; month < 12; month += 1) {
+      const daysInMonth = new Date(year, month + 1, 0).getDate();
+      const entries = year === 2026 && month > 5 ? 0 : randomInt(rng, 12, 24);
 
-    transactions.push({
-      id: uuid(),
-      amount,
-      category: category.name,
-      merchant,
-      date: date.toISOString(),
-      note,
-      created_at: date.toISOString(),
-      raw_text: `${merchant} - ${note}`,
-      source: "demo",
-      synced: 1,
-    });
+      for (let i = 0; i < entries; i += 1) {
+        const category = pickCategory(rng);
+        const day = randomInt(rng, 1, daysInMonth);
+        const date = new Date(year, month, day, randomInt(rng, 8, 22), randomInt(rng, 0, 59), randomInt(rng, 0, 59), 0);
+        const amount = Math.max(0, Math.round(randomInt(rng, category.min, category.max) / 1000) * 1000);
+        const merchant = pick(rng, category.merchants);
+        const note = pick(rng, category.notes);
+        const id = `demo-${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}-${String(i).padStart(2, "0")}`;
+
+        transactions.push({
+          id,
+          amount,
+          category: category.name,
+          merchant,
+          date: date.toISOString(),
+          note,
+          created_at: date.toISOString(),
+          raw_text: `${merchant} - ${note}`,
+          source: "demo",
+          synced: 1,
+        });
+      }
+    }
   }
 
   transactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   return transactions;
+}
+
+export function generateYearOfSpending(): Transaction[] {
+  return generateFixedSpendingYears().filter((item) => new Date(item.date).getFullYear() === 2026);
 }

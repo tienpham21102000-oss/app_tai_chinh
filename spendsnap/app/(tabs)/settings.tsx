@@ -7,6 +7,8 @@ import { ensureDbReady, getSetting, setSetting } from "../../services/db";
 import { isSupabaseConfigured } from "../../services/supabase";
 import { syncTransactionsToSupabase } from "../../services/sync";
 import { useTransactionsStore } from "../../stores/transactions";
+import { usePreferencesStore } from "../../stores/preferences";
+import { useI18n } from "../../utils/i18n";
 import { formatMoneyVnd } from "../../utils/money";
 
 const BUDGET_KEY = "monthly_budget_vnd";
@@ -14,6 +16,8 @@ const SYNC_ENABLED_KEY = "supabase_sync_enabled";
 const DEFAULT_BUDGET = 5_000_000;
 
 export default function SettingsScreen() {
+  const { t, language } = useI18n();
+  const setLanguage = usePreferencesStore((s) => s.setLanguage);
   const [syncEnabled, setSyncEnabled] = useState(false);
   const [notifyEnabled, setNotifyEnabled] = useState(true);
   const resetAll = useTransactionsStore((s) => s.resetAll);
@@ -87,10 +91,18 @@ export default function SettingsScreen() {
     );
   };
 
+  const safePush = (route: any) => {
+    try {
+      router.push(route);
+    } catch (e) {
+      Alert.alert("Navigation Error", "Cannot open this screen.");
+    }
+  };
+
   return (
     <ScrollView className="flex-1 bg-[#f8fafc] px-4 pt-14" showsVerticalScrollIndicator={false}>
       {/* Title */}
-      <Text className="text-2xl font-bold text-slate-900 mb-6">Settings</Text>
+      <Text className="text-2xl font-bold text-slate-900 mb-6">Cài đặt</Text>
 
       {/* Profile Card */}
       <View className="flex-row items-center bg-white border border-slate-100 rounded-3xl p-5 shadow-sm mb-6">
@@ -101,14 +113,46 @@ export default function SettingsScreen() {
           <Text className="text-base font-bold text-slate-800">User Account</Text>
           <Text className="text-xs text-slate-400 font-semibold">Tier: SpendSnap Pro 🚀</Text>
         </View>
-        <Pressable className="bg-indigo-50 px-3.5 py-2 rounded-2xl active:scale-95">
+        <Pressable
+          onPress={() => Alert.alert("Coming soon", "Profile editing will be available soon.")}
+          className="bg-indigo-50 px-3.5 py-2 rounded-2xl active:scale-95"
+        >
           <Text className="text-xs font-bold text-indigo-600">Edit</Text>
         </Pressable>
       </View>
 
       {/* Settings Sections */}
-      <Text className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 px-1">Preferences</Text>
+      <Text className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 px-1">Tùy chọn</Text>
       <View className="bg-white border border-slate-100 rounded-3xl overflow-hidden mb-6 shadow-sm">
+        <View className="px-5 py-4 border-b border-slate-50">
+          <View className="flex-row items-center gap-3.5 mb-3">
+            <View className="w-9 h-9 rounded-xl bg-indigo-50 items-center justify-center">
+              <Ionicons name="language-outline" size={18} color="#4f46e5" />
+            </View>
+            <View>
+              <Text className="text-sm font-bold text-slate-800">{t("language")}</Text>
+              <Text className="text-[10px] text-slate-400 font-medium">Sync app copy across screens</Text>
+            </View>
+          </View>
+          <View className="flex-row gap-2">
+            <Pressable
+              onPress={() => void setLanguage("vi")}
+              className={`flex-1 rounded-2xl px-3 py-3 items-center ${language === "vi" ? "bg-indigo-600" : "bg-slate-50"}`}
+            >
+              <Text className={language === "vi" ? "text-white text-xs font-black" : "text-slate-600 text-xs font-black"}>
+                {t("vietnamese")}
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={() => void setLanguage("en")}
+              className={`flex-1 rounded-2xl px-3 py-3 items-center ${language === "en" ? "bg-indigo-600" : "bg-slate-50"}`}
+            >
+              <Text className={language === "en" ? "text-white text-xs font-black" : "text-slate-600 text-xs font-black"}>
+                {t("english")}
+              </Text>
+            </Pressable>
+          </View>
+        </View>
         {/* Sync Settings */}
         <View className="flex-row items-center justify-between px-5 py-4 border-b border-slate-50">
           <View className="flex-row items-center gap-3.5">
@@ -155,7 +199,7 @@ export default function SettingsScreen() {
             </View>
             <View>
               <Text className="text-sm font-bold text-slate-800">Default Currency</Text>
-              <Text className="text-[10px] text-slate-400 font-medium">Vietnamese Dong (VND - ₫)</Text>
+              <Text className="text-[10px] text-slate-400 font-medium">Vietnamese unit (k)</Text>
             </View>
           </View>
           <Ionicons name="chevron-forward" size={16} color="#94a3b8" />
@@ -163,7 +207,7 @@ export default function SettingsScreen() {
 
         {/* Budget Setting */}
         <Pressable
-          onPress={() => router.push("/budget")}
+          onPress={() => safePush("/budget")}
           className="flex-row items-center justify-between px-5 py-4 border-b border-slate-50 active:bg-slate-50"
         >
           <View className="flex-row items-center gap-3.5">
@@ -182,7 +226,7 @@ export default function SettingsScreen() {
 
         {/* Categories */}
         <Pressable
-          onPress={() => router.push("/categories")}
+          onPress={() => safePush("/categories")}
           className="flex-row items-center justify-between px-5 py-4 active:bg-slate-50"
         >
           <View className="flex-row items-center gap-3.5">
@@ -198,7 +242,7 @@ export default function SettingsScreen() {
         </Pressable>
       </View>
 
-      <Text className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 px-1">Security & Maintenance</Text>
+      <Text className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 px-1">Bảo mật & bảo trì</Text>
       <View className="bg-white border border-slate-100 rounded-3xl overflow-hidden mb-6 shadow-sm">
         {/* API Key Status */}
         <View className="flex-row items-center justify-between px-5 py-4 border-b border-slate-50">
@@ -230,7 +274,7 @@ export default function SettingsScreen() {
 
       {/* App Info footer */}
       <View className="items-center mt-4 mb-16">
-        <Text className="text-[10px] font-bold text-slate-300 uppercase tracking-widest">SpendSnap v1.0.0</Text>
+      <Text className="text-[10px] font-bold text-slate-300 uppercase tracking-widest">SpendSnap v1.0.0</Text>
         <Text className="text-[9px] text-slate-400 font-medium mt-1">Made with ❤️ by Google Deepmind AI Team</Text>
       </View>
     </ScrollView>

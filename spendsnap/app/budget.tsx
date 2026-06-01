@@ -10,7 +10,7 @@ const BUDGET_KEY = "monthly_budget_vnd";
 const DEFAULT_BUDGET = 5_000_000;
 
 export default function BudgetModal() {
-  const [rawBudget, setRawBudget] = useState<string>(String(DEFAULT_BUDGET));
+  const [rawBudget, setRawBudget] = useState<string>(String(Math.round(DEFAULT_BUDGET / 1000)));
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -21,7 +21,8 @@ export default function BudgetModal() {
         const value = await getSetting(BUDGET_KEY);
         if (!mounted) return;
         const asNum = value ? Number(value) : DEFAULT_BUDGET;
-        setRawBudget(String(Number.isFinite(asNum) ? asNum : DEFAULT_BUDGET));
+        const safeBudget = Number.isFinite(asNum) ? asNum : DEFAULT_BUDGET;
+        setRawBudget(String(Math.round(safeBudget / 1000)));
       } finally {
         if (mounted) setLoading(false);
       }
@@ -38,7 +39,7 @@ export default function BudgetModal() {
     try {
       await ensureDbReady();
       await setSetting(BUDGET_KEY, String(budgetValue));
-      router.back();
+      router.dismissTo("/");
     } catch (e) {
       Alert.alert("Save failed", e instanceof Error ? e.message : "Unknown error");
     }
@@ -50,23 +51,23 @@ export default function BudgetModal() {
         <View className="flex-row items-center justify-between mb-4">
           <Text className="text-base font-extrabold text-slate-900">Monthly Budget Goal</Text>
           <View className="bg-emerald-50 px-2.5 py-1 rounded-full">
-            <Text className="text-[10px] font-bold text-emerald-600">VND</Text>
+            <Text className="text-[10px] font-bold text-emerald-600">k</Text>
           </View>
         </View>
 
         <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
-          Budget (numbers only)
+          Budget (numbers = k)
         </Text>
         <View className="flex-row items-center bg-slate-50 border border-slate-100 rounded-2xl px-4 py-3">
           <TextInput
             value={rawBudget}
             onChangeText={setRawBudget}
             keyboardType="numeric"
-            placeholder="5000000"
+            placeholder="5000"
             placeholderTextColor="#94a3b8"
             className="flex-1 text-sm font-bold text-slate-800"
           />
-          <Text className="text-xs text-slate-400 font-bold">VND</Text>
+          <Text className="text-xs text-slate-400 font-bold">k</Text>
         </View>
         <Text className="text-[10px] text-indigo-500 font-semibold mt-2 px-1">
           {formatMoneyVnd(budgetValue)}
@@ -84,4 +85,3 @@ export default function BudgetModal() {
     </ScrollView>
   );
 }
-

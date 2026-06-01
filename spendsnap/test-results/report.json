@@ -1,0 +1,159 @@
+{
+  "timestamp": "2026-06-01T14:26:03.006Z",
+  "duration": "82s",
+  "totalTests": 6,
+  "passed": 6,
+  "failed": 0,
+  "results": [
+    {
+      "name": "AI Voice Button",
+      "status": "pass",
+      "steps": [
+        {
+          "step": "Captured home screen",
+          "status": "pass"
+        },
+        {
+          "step": "Tapped voice button",
+          "status": "pass"
+        },
+        {
+          "step": "Add screen opened",
+          "status": "pass"
+        },
+        {
+          "step": "Voice module not clearly detected",
+          "status": "warn"
+        },
+        {
+          "step": "Recording started",
+          "status": "pass"
+        },
+        {
+          "step": "Recording stopped",
+          "status": "pass"
+        },
+        {
+          "step": "Transcription completed",
+          "status": "pass"
+        }
+      ],
+      "timestamp": "2026-06-01T14:24:40.597Z"
+    },
+    {
+      "name": "Scan Bill Button",
+      "status": "pass",
+      "steps": [
+        {
+          "step": "Tapped scan button",
+          "status": "pass"
+        },
+        {
+          "step": "Camera add screen opened",
+          "status": "pass"
+        },
+        {
+          "step": "Camera capture dialog appeared",
+          "status": "pass"
+        },
+        {
+          "step": "Camera opened",
+          "status": "pass"
+        },
+        {
+          "step": "Image captured",
+          "status": "pass"
+        },
+        {
+          "step": "OCR processing",
+          "status": "pass"
+        }
+      ],
+      "timestamp": "2026-06-01T14:24:58.572Z"
+    },
+    {
+      "name": "Quick Type Button",
+      "status": "pass",
+      "steps": [
+        {
+          "step": "Tapped quick type button",
+          "status": "pass"
+        },
+        {
+          "step": "Quick type input expanded",
+          "status": "pass"
+        },
+        {
+          "step": "Typed transaction text",
+          "status": "pass"
+        },
+        {
+          "step": "Text submitted for processing",
+          "status": "pass"
+        },
+        {
+          "step": "AI extracted transaction",
+          "status": "pass"
+        }
+      ],
+      "timestamp": "2026-06-01T14:25:19.256Z"
+    },
+    {
+      "name": "Settings Button",
+      "status": "pass",
+      "steps": [
+        {
+          "step": "Tapped settings button",
+          "status": "pass"
+        },
+        {
+          "step": "Settings screen opened",
+          "status": "pass"
+        }
+      ],
+      "timestamp": "2026-06-01T14:25:38.621Z"
+    },
+    {
+      "name": "Tab Navigation",
+      "status": "pass",
+      "steps": [
+        {
+          "step": "Switched to Home tab",
+          "status": "pass"
+        },
+        {
+          "step": "Switched to History tab",
+          "status": "pass"
+        },
+        {
+          "step": "Switched to Analytics tab",
+          "status": "pass"
+        },
+        {
+          "step": "Switched to Settings tab",
+          "status": "pass"
+        }
+      ],
+      "timestamp": "2026-06-01T14:25:46.549Z"
+    },
+    {
+      "name": "Delete Button",
+      "status": "pass",
+      "steps": [
+        {
+          "step": "Viewed home screen",
+          "status": "pass"
+        },
+        {
+          "step": "Tapped delete button",
+          "status": "pass"
+        },
+        {
+          "step": "Transaction deleted",
+          "status": "pass"
+        }
+      ],
+      "timestamp": "2026-06-01T14:25:57.801Z"
+    }
+  ]
+}

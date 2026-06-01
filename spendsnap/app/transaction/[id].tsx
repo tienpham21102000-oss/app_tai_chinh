@@ -74,7 +74,7 @@ export default function TransactionModal() {
           style: "destructive",
           onPress: async () => {
             await deleteTx(tx.id);
-            router.back();
+            router.dismissTo("/");
           },
         },
       ]
@@ -86,7 +86,7 @@ export default function TransactionModal() {
       <View className="flex-1 items-center justify-center bg-[#f8fafc] px-6">
         <Ionicons name="alert-circle-outline" size={48} color="#94a3b8" />
         <Text className="text-slate-500 font-bold mt-2">Transaction not found</Text>
-        <Pressable onPress={() => router.back()} className="mt-4 rounded-2xl bg-indigo-500 px-6 py-3 shadow-md">
+        <Pressable onPress={() => router.dismissTo("/")} className="mt-4 rounded-2xl bg-indigo-500 px-6 py-3 shadow-md">
           <Text className="text-white font-extrabold text-xs">Go Back</Text>
         </Pressable>
       </View>
@@ -97,7 +97,7 @@ export default function TransactionModal() {
     <View className="flex-1 bg-[#f8fafc] px-4 pt-10">
       {/* Header Close */}
       <View className="flex-row justify-between items-center mb-6">
-        <Pressable onPress={() => router.back()} className="w-9 h-9 rounded-full bg-white border border-slate-100 items-center justify-center shadow-sm">
+        <Pressable onPress={() => router.dismissTo("/")} className="w-9 h-9 rounded-full bg-white border border-slate-100 items-center justify-center shadow-sm">
           <Ionicons name="chevron-back" size={18} color="#64748b" />
         </Pressable>
         <Text className="text-xs font-bold text-slate-400 uppercase tracking-widest">Transaction Details</Text>
@@ -175,7 +175,7 @@ export default function TransactionModal() {
 
       {/* Done Button */}
       <Pressable
-        onPress={() => router.back()}
+        onPress={() => router.dismissTo("/")}
         className="w-full flex-row items-center justify-center gap-1.5 rounded-2xl bg-slate-900 py-4 shadow-md active:scale-95 mb-10"
       >
         <Text className="text-white font-extrabold text-sm">Close Receipt</Text>

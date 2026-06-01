@@ -49,32 +49,19 @@ export const useTransactionsStore = create<State>((set, get) => ({
   refreshAll: async () => {
     await ensureDbReady();
     const rows = await listTransactions();
-    const nowIso = new Date().toISOString();
     set({
-      transactions: rows.map((r) => {
-        let finalDate = r.date ?? r.created_at ?? nowIso;
-        if (
-          !finalDate ||
-          finalDate === "null" ||
-          finalDate === "undefined" ||
-          isNaN(new Date(finalDate).getTime())
-        ) {
-          finalDate = r.created_at && !isNaN(new Date(r.created_at).getTime()) ? r.created_at : nowIso;
-        }
-
-        return {
-          id: r.id,
-          amount: r.amount,
-          category: r.category,
-          merchant: r.merchant,
-          date: finalDate,
-          note: r.note,
-          created_at: r.created_at ?? nowIso,
-          raw_text: r.raw_text,
-          source: r.source,
-          synced: r.synced,
-        };
-      }),
+      transactions: rows.map((row) => ({
+        id: row.id,
+        amount: Number(row.amount ?? 0),
+        category: row.category,
+        merchant: row.merchant,
+        date: row.date ?? row.created_at ?? new Date().toISOString(),
+        note: row.note,
+        created_at: row.created_at ?? new Date().toISOString(),
+        raw_text: row.raw_text,
+        source: row.source,
+        synced: row.synced,
+      })),
     });
   },
 

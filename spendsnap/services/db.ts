@@ -1,4 +1,5 @@
 import { Platform } from "react-native";
+import { MOCK_TRANSACTIONS } from "../utils/mockData";
 
 type SQLiteDatabase = any;
 let dbPromise: Promise<SQLiteDatabase> | null = null;
@@ -20,7 +21,10 @@ const WEB_KEYS = {
   settings: "spendsnap_web_settings_v1",
 };
 
-const DEFAULT_CATEGORIES: Array<{
+const MOCK_SEED_KEY = "mock_seed_version";
+const MOCK_SEED_VERSION = "fixed_2022_2026_v1";
+
+export const DEFAULT_CATEGORIES: Array<{
   id: string;
   name: string;
   icon: string;
@@ -66,10 +70,15 @@ export async function ensureDbReady() {
       );
     }
     // Ensure keys exist
-    const tx = webReadJson<DbTransactionRow[]>(WEB_KEYS.transactions, []);
-    if (!Array.isArray(tx)) webWriteJson(WEB_KEYS.transactions, []);
     const settings = webReadJson<Record<string, string>>(WEB_KEYS.settings, {});
     if (!settings || typeof settings !== "object") webWriteJson(WEB_KEYS.settings, {});
+    const tx = webReadJson<DbTransactionRow[]>(WEB_KEYS.transactions, []);
+    if (!Array.isArray(tx)) {
+      webWriteJson(WEB_KEYS.transactions, []);
+    } else if (!tx.some((row) => row.source === "demo") && settings?.[MOCK_SEED_KEY] !== MOCK_SEED_VERSION) {
+      webWriteJson(WEB_KEYS.transactions, [...tx, ...MOCK_TRANSACTIONS]);
+      webWriteJson(WEB_KEYS.settings, { ...(settings ?? {}), [MOCK_SEED_KEY]: MOCK_SEED_VERSION });
+    }
     return;
   }
 
@@ -111,22 +120,49 @@ export async function ensureDbReady() {
     );
   `);
 
-  // Seed default categories once.
-  const countRow = (await db.getFirstAsync("SELECT COUNT(*) as count FROM categories")) as
-    | { count?: number }
-    | null
-    | undefined;
-  const count = Number(countRow?.count ?? 0);
-  if (count === 0) {
-    for (const c of DEFAULT_CATEGORIES) {
+  // Seed default categories safely even if init runs more than once.
+  for (const c of DEFAULT_CATEGORIES) {
+    await db.runAsync(
+      "INSERT OR IGNORE INTO categories (id, name, icon, color, budget_monthly) VALUES (?, ?, ?, ?, ?)",
+      c.id,
+      c.name,
+      c.icon,
+      c.color,
+      c.budget_monthly
+    );
+  }
+
+  const countRow = (await db.getFirstAsync("SELECT COUNT(*) AS count FROM transactions WHERE source = 'demo'")) as { count?: number } | null;
+  const seedVersion = await getSetting(MOCK_SEED_KEY);
+  if ((countRow?.count ?? 0) === 0 && seedVersion !== MOCK_SEED_VERSION) {
+    await db.execAsync("BEGIN;");
+    try {
+      for (const tx of MOCK_TRANSACTIONS) {
+        await db.runAsync(
+          `INSERT OR IGNORE INTO transactions (id, amount, category, merchant, date, note, created_at, raw_text, source, synced)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          tx.id,
+          tx.amount,
+          tx.category ?? null,
+          tx.merchant ?? null,
+          tx.date,
+          tx.note ?? null,
+          tx.created_at,
+          tx.raw_text ?? null,
+          tx.source ?? "demo",
+          tx.synced ?? 1
+        );
+      }
       await db.runAsync(
-        "INSERT INTO categories (id, name, icon, color, budget_monthly) VALUES (?, ?, ?, ?, ?)",
-        c.id,
-        c.name,
-        c.icon,
-        c.color,
-        c.budget_monthly
+        `INSERT INTO app_settings (key, value) VALUES (?, ?)
+         ON CONFLICT(key) DO UPDATE SET value=excluded.value`,
+        MOCK_SEED_KEY,
+        MOCK_SEED_VERSION
       );
+      await db.execAsync("COMMIT;");
+    } catch (e) {
+      await db.execAsync("ROLLBACK;");
+      throw e;
     }
   }
 }
@@ -328,6 +364,34 @@ export async function deleteCategory(id: string) {
   }
   const db = await getDb();
   await db.runAsync("DELETE FROM categories WHERE id = ?", id);
+}
+
+export async function restoreDefaultCategories() {
+  if (Platform.OS === "web") {
+    webWriteJson(
+      WEB_KEYS.categories,
+      DEFAULT_CATEGORIES.map((c) => ({
+        id: c.id,
+        name: c.name,
+        icon: c.icon,
+        color: c.color,
+        budget_monthly: c.budget_monthly,
+      } satisfies DbCategoryRow))
+    );
+    return;
+  }
+  const db = await getDb();
+  await db.execAsync("DELETE FROM categories;");
+  for (const c of DEFAULT_CATEGORIES) {
+    await db.runAsync(
+      "INSERT INTO categories (id, name, icon, color, budget_monthly) VALUES (?, ?, ?, ?, ?)",
+      c.id,
+      c.name,
+      c.icon,
+      c.color,
+      c.budget_monthly
+    );
+  }
 }
 
 export async function getSetting(key: string): Promise<string | null> {

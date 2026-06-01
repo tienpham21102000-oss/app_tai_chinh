@@ -1,8 +1,10 @@
 import { Tabs } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Platform } from "react-native";
+import { useI18n } from "../../utils/i18n";
 
 export default function TabsLayout() {
+  const { t } = useI18n();
   return (
     <Tabs
       screenOptions={{
@@ -40,7 +42,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: "Home",
+          title: t("home"),
           headerShown: false,
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="wallet-outline" size={size + 2} color={color} />
@@ -50,7 +52,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="history"
         options={{
-          title: "History",
+          title: t("history"),
           headerShown: false,
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="list-outline" size={size + 2} color={color} />
@@ -60,7 +62,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="analytics"
         options={{
-          title: "Analytics",
+          title: t("analytics"),
           headerShown: false,
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="pie-chart-outline" size={size + 2} color={color} />
@@ -70,7 +72,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="settings"
         options={{
-          title: "Settings",
+          title: t("settings"),
           headerShown: false,
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="settings-outline" size={size + 2} color={color} />
@@ -80,4 +82,3 @@ export default function TabsLayout() {
     </Tabs>
   );
 }
-

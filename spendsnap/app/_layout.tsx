@@ -5,13 +5,17 @@ import { useEffect } from "react";
 
 import "../global.css";
 import { ensureDbReady } from "../services/db";
+import { usePreferencesStore } from "../stores/preferences";
 
 const queryClient = new QueryClient();
 
 export default function RootLayout() {
+  const loadLanguage = usePreferencesStore((s) => s.loadLanguage);
+
   useEffect(() => {
     void ensureDbReady();
-  }, []);
+    void loadLanguage();
+  }, [loadLanguage]);
 
   return (
     <QueryClientProvider client={queryClient}>
