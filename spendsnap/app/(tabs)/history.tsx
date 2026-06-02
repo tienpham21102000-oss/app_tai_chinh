@@ -414,16 +414,18 @@ export default function HistoryScreen() {
             <View style={[styles.iconBox, { backgroundColor: getCategoryBgColor(categoryText) }]}>
               <Text className="text-xl">{emoji}</Text>
             </View>
-            <View style={{ flex: 1, minWidth: 0 }}>
-              <Text className="text-sm font-black text-slate-800" numberOfLines={1}>{merchantText}</Text>
-              <Text className="text-[10px] text-slate-400 mt-0.5 font-bold uppercase tracking-wider">{categoryText}</Text>
+            <View style={{ flex: 1, minWidth: 0, gap: 3 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+                <Text className="text-sm font-black text-slate-800" numberOfLines={1} style={{ flex: 1 }}>{merchantText}</Text>
+                <Text className="text-sm font-black text-slate-900" numberOfLines={1}>-{formatMoneyVnd(amountValue)}</Text>
+              </View>
+              <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+                <Text className="text-[10px] text-slate-400 font-bold uppercase tracking-wider" numberOfLines={1} style={{ flex: 1 }}>{categoryText}</Text>
+                <Text className="text-[9px] text-slate-400" numberOfLines={1} style={{ maxWidth: 140 }}>
+                  {noteText ? (noteText.length > 24 ? `${noteText.slice(0, 24)}...` : noteText) : t("noNote")}
+                </Text>
+              </View>
             </View>
-          </View>
-          <View style={{ alignItems: "flex-end", marginLeft: 8, maxWidth: 130 }}>
-            <Text className="text-sm font-black text-slate-900">-{formatMoneyVnd(amountValue)}</Text>
-            <Text className="text-[9px] text-slate-400 mt-0.5" numberOfLines={1}>
-              {noteText ? (noteText.length > 15 ? `${noteText.slice(0, 15)}...` : noteText) : t("noNote")}
-            </Text>
           </View>
         </Pressable>
       );

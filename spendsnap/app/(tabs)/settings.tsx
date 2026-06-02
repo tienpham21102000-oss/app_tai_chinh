@@ -221,7 +221,7 @@ export default function SettingsScreen() {
         </View>
 
         {/* Currency Setting */}
-        <Pressable className="flex-row items-center justify-between px-5 py-4 border-b border-slate-50 active:bg-slate-50">
+        <View className="flex-row items-center justify-between px-5 py-4 border-b border-slate-50">
           <View className="flex-row items-center gap-3.5">
             <View className="w-9 h-9 rounded-xl bg-amber-50 items-center justify-center">
               <Ionicons name="cash-outline" size={18} color="#d97706" />
@@ -231,8 +231,8 @@ export default function SettingsScreen() {
               <Text className="text-[10px] text-slate-400 font-medium">{t("defaultCurrencyHint")}</Text>
             </View>
           </View>
-          <Ionicons name="chevron-forward" size={16} color="#94a3b8" />
-        </Pressable>
+          <Ionicons name="lock-closed-outline" size={16} color="#94a3b8" />
+        </View>
 
         {/* Budget Setting */}
         <Pressable

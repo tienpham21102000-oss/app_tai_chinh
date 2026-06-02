@@ -323,7 +323,7 @@ export default function AnalyticsScreen() {
           <Pressable onPress={() => { const p = new Date(selectedMonth); p.setMonth(p.getMonth() - 1); setSelectedMonth(p); }} className="p-2 rounded-lg active:bg-slate-100">
             <Ionicons name="chevron-back" size={24} color="#334155" />
           </Pressable>
-          <Text className="text-lg font-black text-slate-900">{monthLabel(selectedMonth, language)}</Text>
+          <Text className="text-lg font-black text-slate-900">{`${selectedMonth.getMonth() + 1}/${selectedMonth.getFullYear()}`}</Text>
           <Pressable onPress={() => { const n = new Date(selectedMonth); n.setMonth(n.getMonth() + 1); setSelectedMonth(n); }} className="p-2 rounded-lg active:bg-slate-100">
             <Ionicons name="chevron-forward" size={24} color="#334155" />
           </Pressable>
@@ -344,7 +344,7 @@ export default function AnalyticsScreen() {
       )}
 
       {/* Budget card — month view only */}
-      {viewMode === "month" && (
+      {false && viewMode === "month" && (
         <View className="bg-white border border-slate-100 rounded-3xl p-5 shadow-lg mb-6 relative overflow-hidden">
           <View className="absolute -right-8 -top-8 w-24 h-24 rounded-full bg-indigo-500/5 blur-lg" />
           <View className="flex-row justify-between items-center mb-4">
@@ -464,7 +464,7 @@ export default function AnalyticsScreen() {
       )}
 
       {/* ── YEARLY VIEW ── */}
-      {viewMode === "year" && (
+      {false && viewMode === "year" && (
         <>
           {/* Line chart only — bar chart removed */}
           <Text className="text-base font-black text-slate-800 mb-4 tracking-tight">{t("yearlyTrend")}</Text>
@@ -525,8 +525,8 @@ export default function AnalyticsScreen() {
                 
                 {/* Tooltip */}
                 {tooltip && (
-                  <View style={{ position: "absolute", left: Math.min(tooltip.x - 40, chartWidth - 80), top: Math.max(tooltip.y - 30, 0), backgroundColor: "#1e293b", paddingHorizontal: 6, paddingVertical: 4, borderRadius: 6, zIndex: 50 }}>
-                    <Text style={{ fontSize: 9, color: "white", fontWeight: "bold" }}>{tooltip.text}</Text>
+                  <View style={{ position: "absolute", left: Math.min(tooltip!.x - 40, chartWidth - 80), top: Math.max(tooltip!.y - 30, 0), backgroundColor: "#1e293b", paddingHorizontal: 6, paddingVertical: 4, borderRadius: 6, zIndex: 50 }}>
+                    <Text style={{ fontSize: 9, color: "white", fontWeight: "bold" }}>{tooltip!.text}</Text>
                     <Pressable style={{ position: "absolute", top: -5, right: -5, backgroundColor: "#ef4444", borderRadius: 10, width: 14, height: 14, justifyContent: "center", alignItems: "center" }} onPress={() => setTooltip(null)}>
                       <Text style={{ fontSize: 8, color: "white", fontWeight: "bold" }}>✕</Text>
                     </Pressable>
@@ -700,6 +700,117 @@ export default function AnalyticsScreen() {
           </View>
         </View>
       </View>
+
+      {viewMode === "month" && (
+        <>
+          <Text className="text-base font-black text-slate-800 mb-4 tracking-tight">{t("weekSpending")}</Text>
+          <View className="bg-white border border-slate-100 rounded-3xl p-4 shadow-md mb-12">
+            <View style={{ borderWidth: 0.5, borderColor: "#e2e8f0", borderRadius: 6, overflow: "hidden" }}>
+              <View style={{ flexDirection: "row", borderBottomWidth: 0.5, borderBottomColor: "#e2e8f0" }}>
+                {WEEKDAY_LABELS.map((l, i) => (
+                  <View key={i} style={{ flex: 1, alignItems: "center", paddingVertical: 4, borderRightWidth: i < 6 ? 0.5 : 0, borderRightColor: "#e2e8f0" }}>
+                    <Text style={{ fontSize: 8, fontWeight: "bold", color: "#94a3b8", textTransform: "uppercase", letterSpacing: 0.5 }}>{l}</Text>
+                  </View>
+                ))}
+              </View>
+              {calendarWeeks.map((wk, wi) => (
+                <View key={wi} style={{ flexDirection: "row", borderBottomWidth: wi < maxWeeks - 1 ? 0.5 : 0, borderBottomColor: "#e2e8f0" }}>
+                  {wk.map((day, di) => {
+                    const b = dailyCategoryBreakdown[day.dayStr] || {};
+                    const tot = activeCats.reduce((s, c) => s + (b[c] || 0), 0);
+                    const visCats = activeCats.filter((c) => (b[c] || 0) > 0);
+                    const hasSpending = tot > 0 && visCats.length > 0;
+                    return (
+                      <View key={di} style={{ flex: 1, padding: 2, borderRightWidth: di < 6 ? 0.5 : 0, borderRightColor: "#e2e8f0", backgroundColor: day.isCurrentMonth ? "white" : "#f8fafc" }}>
+                        {di === 0 && <Text style={{ fontSize: 6, fontWeight: "bold", color: "#6366f1", marginBottom: 1 }}>T{wi + 1}</Text>}
+                        <Text style={{ fontSize: 9, fontWeight: "bold", textAlign: "center", marginBottom: 2, color: day.isCurrentMonth ? (hasSpending ? "#1e293b" : "#94a3b8") : "#cbd5e1" }}>{day.date.getDate()}</Text>
+                        <View style={{ height: 50, justifyContent: "flex-end", alignItems: "center" }}>
+                          {hasSpending && (
+                            <View style={{ flexDirection: "row", alignItems: "flex-end", justifyContent: "center", gap: 1, maxWidth: "100%", overflow: "hidden" }}>
+                              {visCats.map((cat) => {
+                                const amt = b[cat] || 0;
+                                const h = Math.max((amt / Math.max(maxCategoryAmount, 1)) * 42, 4);
+                                const barWidth = Math.max(3, Math.min(9, Math.floor(38 / Math.max(visCats.length, 1))));
+                                return <View key={cat} style={{ height: h, width: barWidth, borderRadius: 1.5, backgroundColor: CATEGORY_HEX_COLORS[cat] }} />;
+                              })}
+                            </View>
+                          )}
+                        </View>
+                      </View>
+                    );
+                  })}
+                </View>
+              ))}
+            </View>
+            <View className="mt-4 pt-3 border-t border-slate-100">
+              <Text className="text-[9px] font-bold text-slate-400 uppercase mb-2">{t("legendToggle")}</Text>
+              <View className="flex-row flex-wrap gap-x-3 gap-y-2">
+                {CATEGORY_ORDER.map((cat) => {
+                  const active = visibleCategories[cat];
+                  return (
+                    <Pressable key={cat} onPress={() => toggleCategory(cat)} className="flex-row items-center gap-1.5 px-2 py-1 rounded-full active:opacity-60" style={{ backgroundColor: active ? CATEGORY_HEX_COLORS[cat] + "18" : "#f1f5f9", borderWidth: 1, borderColor: active ? CATEGORY_HEX_COLORS[cat] + "60" : "#e2e8f0" }}>
+                      <View style={{ width: 10, height: 10, borderRadius: 2, backgroundColor: active ? CATEGORY_HEX_COLORS[cat] : "#cbd5e1" }} />
+                      <Text style={{ fontSize: 9, fontWeight: "700", color: active ? CATEGORY_HEX_COLORS[cat] : "#94a3b8", textDecorationLine: active ? "none" : "line-through" }}>{categoryLabel(cat, t)}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+          </View>
+        </>
+      )}
+
+      {viewMode === "year" && (
+        <>
+          <Text className="text-base font-black text-slate-800 mb-4 tracking-tight">{t("yearlyTrend")}</Text>
+          <View className="bg-white border border-slate-100 rounded-3xl p-4 shadow-md mb-12" onLayout={(e) => setChartWidth(e.nativeEvent.layout.width - 32)}>
+            {chartWidth > 0 && (
+              <View style={{ width: "100%", height: LINE_H + 30, position: "relative", marginTop: 10, borderWidth: 0.5, borderColor: "#e2e8f0", borderRadius: 6, overflow: "hidden" }}>
+                {[0, 0.25, 0.5, 0.75, 1].map((r, i) => (
+                  <View key={i} style={{ position: "absolute", left: 0, right: 0, top: r * (LINE_H - 12), height: 0.5, backgroundColor: "#e2e8f0" }}>
+                    <Text style={{ position: "absolute", left: 2, top: -10, fontSize: 6, color: "#94a3b8" }}>{formatMoneyVnd(yearlyChartData.maxCatValue * (1 - r))}</Text>
+                  </View>
+                ))}
+                {yearlyChartData.activeCats.map((cat) => {
+                  const ci = yearlyChartData.activeCats.indexOf(cat);
+                  const cd = yearlyChartData.monthCatData[ci];
+                  const color = CATEGORY_HEX_COLORS[cat];
+                  const pts = yearlyChartData.chartMonths.map((m, idx) => ({ x: 20 + COL_W / 2 + idx * COL_W, y: yearlyChartData.getY(cd[m] || 0, LINE_H - 12), amount: cd[m] || 0 }));
+                  return (
+                    <View key={cat}>
+                      {pts.map((p, i) => {
+                        if (i === 0 || p.amount === 0 || pts[i - 1].amount === 0) return null;
+                        const pr = pts[i - 1];
+                        const dx = p.x - pr.x, dy = p.y - pr.y;
+                        const len = Math.sqrt(dx * dx + dy * dy);
+                        const ang = Math.atan2(dy, dx) * (180 / Math.PI);
+                        return <View key={`l-bottom-${cat}-${i}`} style={{ position: "absolute", left: pr.x, top: pr.y, width: len, height: 1.5, backgroundColor: color, transform: [{ rotate: `${ang}deg` }], transformOrigin: "left center" }} />;
+                      })}
+                      {pts.map((p, i) => p.amount > 0 ? (
+                        <Pressable key={`marker-bottom-${cat}-${i}`} onPress={() => startTransition(() => setTooltip({ x: p.x, y: p.y, text: `${categoryLabel(cat, t)}: ${formatMoneyVnd(p.amount)}` }))} style={{ position: "absolute", left: p.x - 4, top: p.y - 4, width: 8, height: 8, borderRadius: 4, backgroundColor: color, borderWidth: 1, borderColor: "white", zIndex: 10 }} />
+                      ) : null)}
+                    </View>
+                  );
+                })}
+                {yearlyChartData.chartMonths.map((m, idx) => (
+                  <View key={m} style={{ position: "absolute", left: 20 + idx * COL_W, top: LINE_H, width: COL_W, alignItems: "center" }}>
+                    <Text style={{ fontSize: 7, fontWeight: "bold", color: "#94a3b8" }}>{MONTH_LABELS[m]}</Text>
+                  </View>
+                ))}
+                <Text style={{ position: "absolute", left: 0, right: 0, top: LINE_H + 14, textAlign: "center", fontSize: 8, fontWeight: "bold", color: "#64748b" }}>{t("monthAxis")}</Text>
+                {tooltip && (
+                  <View style={{ position: "absolute", left: Math.min(tooltip.x - 40, chartWidth - 80), top: Math.max(tooltip.y - 30, 0), backgroundColor: "#1e293b", paddingHorizontal: 6, paddingVertical: 4, borderRadius: 6, zIndex: 50 }}>
+                    <Text style={{ fontSize: 9, color: "white", fontWeight: "bold" }}>{tooltip.text}</Text>
+                    <Pressable style={{ position: "absolute", top: -5, right: -5, backgroundColor: "#ef4444", borderRadius: 10, width: 14, height: 14, justifyContent: "center", alignItems: "center" }} onPress={() => setTooltip(null)}>
+                      <Text style={{ fontSize: 8, color: "white", fontWeight: "bold" }}>x</Text>
+                    </Pressable>
+                  </View>
+                )}
+              </View>
+            )}
+          </View>
+        </>
+      )}
     </ScrollView>
   );
 }

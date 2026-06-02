@@ -46,7 +46,7 @@ export default function AddModal() {
   const handledIntentRef = useRef(false);
   const [categories, setCategories] = useState<DbCategoryRow[]>([]);
   const [categoryOpen, setCategoryOpen] = useState(false);
-  const { t } = useI18n();
+  const { t, language } = useI18n();
 
   const pendingIntent = useAddIntentStore((s) => s.intent);
   const clearPendingIntent = useAddIntentStore((s) => s.clearIntent);
@@ -95,12 +95,15 @@ export default function AddModal() {
       void extractAndSetDraft(text);
     } else if (activeIntent.mode === "camera") {
       void onScanCameraAndOcr();
+    } else if (activeIntent.mode === "voice") {
+      void onStartRecording();
     }
   }, [activeIntent]);
 
 
   // â”€â”€â”€ Determine if we are in "focused" mode (no full Quick Add AI UI) â”€â”€â”€â”€â”€â”€â”€
   const isFocusedMode = !!activeIntent;
+  const canSaveDraft = !!draft && draft.amount > 0 && !!draft.merchant?.trim() && !!draft.category?.trim() && !loading && !saving && !voiceLoading && !ocrLoading;
 
   // â”€â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   async function extractAndSetDraft(text: string) {
@@ -116,7 +119,7 @@ export default function AddModal() {
         note: result.note ?? null,
       });
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to extract.");
+      setError(e instanceof Error ? e.message : t("extractFailed"));
     } finally {
       setLoading(false);
     }
@@ -342,7 +345,7 @@ export default function AddModal() {
     setSaving(true);
     setError(null);
     try {
-      if (draft) {
+      if (draft && canSaveDraft) {
         const payload = {
           amount: draft.amount,
           merchant: draft.merchant ?? undefined,
@@ -360,22 +363,9 @@ export default function AddModal() {
         closeScreen();
         return;
       }
-      if (raw.trim()) {
-      setLoading(true);
-        const result = await extractTransactionFromText(raw);
-        await add({
-          amount: result.amount,
-          merchant: result.merchant ?? undefined,
-          category: result.category ?? undefined,
-          date: result.date ?? undefined,
-          note: result.note ?? undefined,
-          raw_text: raw,
-          source: "manual_text",
-        });
-        closeScreen();
-      }
+      if (!draft) setError(t("previewBeforeSave"));
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to save transaction.");
+      setError(e instanceof Error ? e.message : t("saveFailed"));
     } finally {
       setLoading(false);
       setSaving(false);
@@ -466,8 +456,8 @@ export default function AddModal() {
                 >
                   <Ionicons name="mic" size={40} color="white" />
                 </View>
-                <Text style={{ color: "#1e293b", fontSize: 14, fontWeight: "900", marginBottom: 4 }}>Recording...</Text>
-                <Text style={{ color: "#64748b", fontSize: 12, marginBottom: 24 }}>Say the merchant and amount</Text>
+                <Text style={{ color: "#1e293b", fontSize: 14, fontWeight: "900", marginBottom: 4 }}>{t("recording")}</Text>
+                <Text style={{ color: "#64748b", fontSize: 12, marginBottom: 24 }}>{t("sayMerchantAmount")}</Text>
                 <View style={{ flexDirection: "row", gap: 12 }}>
                   <Pressable
                     onPress={onStopAndTranscribe}
@@ -482,7 +472,7 @@ export default function AddModal() {
                     }}
                   >
                     <Ionicons name="stop" size={16} color="white" />
-                    <Text style={{ color: "white", fontSize: 14, fontWeight: "900" }}>Stop & Analyze</Text>
+                    <Text style={{ color: "white", fontSize: 14, fontWeight: "900" }}>{t("stopAnalyze")}</Text>
                   </Pressable>
                   <Pressable
                     onPress={onCancelRecording}
@@ -499,22 +489,22 @@ export default function AddModal() {
                     }}
                   >
                     <Ionicons name="trash-outline" size={16} color="#94a3b8" />
-                    <Text style={{ color: "#94a3b8", fontSize: 14, fontWeight: "900" }}>Cancel</Text>
+                    <Text style={{ color: "#94a3b8", fontSize: 14, fontWeight: "900" }}>{t("cancel")}</Text>
                   </Pressable>
                 </View>
               </View>
             ) : voiceLoading ? (
               <View className="items-center py-8">
                 <ActivityIndicator size="large" color="#6366f1" />
-                <Text className="text-sm font-black text-slate-700 mt-4">Analyzing voice...</Text>
-                <Text className="text-xs text-slate-400 mt-1">AI is extracting expense details</Text>
+                <Text className="text-sm font-black text-slate-700 mt-4">{t("analyzingVoice")}</Text>
+                <Text className="text-xs text-slate-400 mt-1">{t("aiExtractingExpense")}</Text>
               </View>
             ) : !draft ? (
               <View className="items-center py-4">
                 <View className="w-20 h-20 rounded-full bg-indigo-50 border-2 border-indigo-200 items-center justify-center mb-3">
                   <Ionicons name="mic-outline" size={36} color="#6366f1" />
                 </View>
-                <Text className="text-sm font-black text-slate-700 mb-1">Ready to record</Text>
+                <Text className="text-sm font-black text-slate-700 mb-1">{t("readyToRecord")}</Text>
                 <Pressable
                   onPress={onStartRecording}
                   style={{
@@ -527,7 +517,7 @@ export default function AddModal() {
                     alignItems: "center",
                   }}
                 >
-                  <Text className="text-white font-black">Start recording</Text>
+                  <Text className="text-white font-black">{t("startRecording")}</Text>
                 </Pressable>
               </View>
             ) : null}
@@ -538,8 +528,8 @@ export default function AddModal() {
         {activeIntent?.mode === "camera" && ocrLoading && (
           <View className="items-center py-10 mb-6">
             <ActivityIndicator size="large" color="#059669" />
-            <Text className="text-sm font-black text-slate-700 mt-4">Scanning receipt...</Text>
-            <Text className="text-xs text-slate-400 mt-1">AI is reading the image</Text>
+            <Text className="text-sm font-black text-slate-700 mt-4">{t("scanningReceipt")}</Text>
+            <Text className="text-xs text-slate-400 mt-1">{t("aiReadingImage")}</Text>
           </View>
         )}
 
@@ -550,13 +540,13 @@ export default function AddModal() {
               <Ionicons name="camera-outline" size={36} color="#059669" />
             </View>
             <Text className="text-sm font-black text-slate-700 mb-3">
-              {error ? "Could not scan image" : "Ready to open camera"}
+              {error ? t("couldNotScanImage") : t("readyToOpenCamera")}
             </Text>
             <Pressable
               onPress={onScanCameraAndOcr}
               className="bg-emerald-600 px-6 py-3 rounded-2xl shadow-md active:scale-95"
             >
-              <Text className="text-white font-black">Open camera</Text>
+              <Text className="text-white font-black">{t("openCamera")}</Text>
             </Pressable>
           </View>
         )}
@@ -565,7 +555,7 @@ export default function AddModal() {
         {activeIntent?.mode === "text" && loading && (
           <View className="items-center py-10 mb-6">
             <ActivityIndicator size="large" color="#6366f1" />
-            <Text className="text-sm font-black text-slate-700 mt-4">Analyzing...</Text>
+            <Text className="text-sm font-black text-slate-700 mt-4">{t("analyzing")}</Text>
           </View>
         )}
 
@@ -577,7 +567,7 @@ export default function AddModal() {
             <TextInput
               value={raw}
               onChangeText={setRaw}
-              placeholder="Grab 85k, Highlands 45k, an pho 50k..."
+              placeholder={language === "vi" ? "Grab 85k, Highlands 45k, ăn phở 50k..." : "Grab 85k, Highlands 45k, pho 50k..."}
               placeholderTextColor="#94a3b8"
               autoFocus
               multiline
@@ -592,7 +582,7 @@ export default function AddModal() {
               className="mt-4 w-full flex-row items-center justify-center gap-1.5 rounded-2xl bg-indigo-600 py-4 shadow-md active:scale-95 disabled:opacity-40"
             >
               <Ionicons name="sparkles" size={18} color="white" />
-              <Text className="text-white font-extrabold text-sm">Extract & Preview</Text>
+              <Text className="text-white font-extrabold text-sm">{t("extractPreview")}</Text>
             </Pressable>
           </View>
         ) : null}
@@ -600,7 +590,7 @@ export default function AddModal() {
         {/* Voice transcript preview */}
         {lastVoiceText ? (
           <View className="bg-slate-50 border border-slate-100 rounded-2xl p-4 mb-4">
-            <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Voice transcript</Text>
+            <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{t("voiceTranscript")}</Text>
             <Text className="text-xs text-slate-600 font-semibold mt-1">"{lastVoiceText}"</Text>
           </View>
         ) : null}
@@ -617,15 +607,15 @@ export default function AddModal() {
         {draft ? (
           <View className="bg-white border border-slate-100 rounded-3xl p-5 shadow-lg mb-4">
             <View className="flex-row justify-between items-center mb-4">
-              <Text className="text-sm font-extrabold text-slate-800">Confirm expense</Text>
+              <Text className="text-sm font-extrabold text-slate-800">{t("confirmExpense")}</Text>
               <View className="bg-emerald-50 px-2.5 py-1 rounded-full">
-                <Text className="text-[10px] font-bold text-emerald-600">Ready to save</Text>
+                <Text className="text-[10px] font-bold text-emerald-600">{canSaveDraft ? t("readyToSave") : t("missingRequiredFields")}</Text>
               </View>
             </View>
 
             {/* Amount */}
             <View className="mb-4">
-              <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Amount (k)</Text>
+              <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">{t("amount")} (k)</Text>
               <View className="flex-row items-center bg-slate-50 border border-slate-100 rounded-2xl px-4 py-2.5">
                 <TextInput
                   value={String(Math.round(draft.amount / 1000))}
@@ -640,12 +630,12 @@ export default function AddModal() {
 
             {/* Merchant */}
             <View className="mb-4">
-              <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Merchant / place</Text>
+              <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">{t("merchantPlace")}</Text>
               <View className="bg-slate-50 border border-slate-100 rounded-2xl px-4 py-2.5">
                 <TextInput
                   value={draft.merchant ?? ""}
                   onChangeText={(v) => setDraft({ ...draft, merchant: v })}
-                  placeholder="Highlands, Grab, Pho..."
+                  placeholder={language === "vi" ? "Highlands, Grab, Phở..." : "Highlands, Grab, Pho..."}
                   placeholderTextColor="#94a3b8"
                   className="text-sm font-bold text-slate-800"
                 />
@@ -656,12 +646,12 @@ export default function AddModal() {
 
             {/* Note */}
             <View className="mb-2">
-              <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Note</Text>
+              <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">{t("note")}</Text>
               <View className="bg-slate-50 border border-slate-100 rounded-2xl px-4 py-2.5">
                 <TextInput
                   value={draft.note ?? ""}
                   onChangeText={(v) => setDraft({ ...draft, note: v })}
-                  placeholder="Lunch with colleagues..."
+                  placeholder={language === "vi" ? "Ăn trưa với đồng nghiệp..." : "Lunch with colleagues..."}
                   placeholderTextColor="#94a3b8"
                   className="text-sm font-bold text-slate-800"
                 />
@@ -674,7 +664,7 @@ export default function AddModal() {
         <View className="mb-12">
           <Pressable
               onPress={onSave}
-            disabled={(!draft && !raw.trim()) || loading || saving}
+            disabled={!canSaveDraft}
             className="w-full flex-row items-center justify-center gap-1.5 rounded-2xl bg-emerald-500 py-4 shadow-md active:scale-95 disabled:opacity-40"
           >
             {loading || saving ? (
@@ -682,7 +672,7 @@ export default function AddModal() {
             ) : (
               <Ionicons name="checkmark-circle" size={18} color="white" />
             )}
-            <Text className="text-white font-extrabold text-sm">Save expense</Text>
+            <Text className="text-white font-extrabold text-sm">{t("saveExpense")}</Text>
           </Pressable>
         </View>
       </ScrollView>
