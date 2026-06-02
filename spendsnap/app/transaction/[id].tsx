@@ -4,7 +4,9 @@ import { router, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 
 import { useTransactionsStore } from "../../stores/transactions";
+import { useAddIntentStore } from "../../stores/addIntent";
 import { formatMoneyVnd } from "../../utils/money";
+import { useI18n } from "../../utils/i18n";
 
 function getCategoryEmoji(category?: string | null): string {
   const c = (category ?? "").toLowerCase();
@@ -58,7 +60,9 @@ function formatTxDate(dateStr?: string | null): string {
 export default function TransactionModal() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const deleteTx = useTransactionsStore((s) => s.deleteTransaction);
+  const setAddIntent = useAddIntentStore((s) => s.setIntent);
   const tx = useTransactionsStore((s) => s.transactions.find((t) => t.id === id));
+  const { t } = useI18n();
 
   const title = useMemo(() => tx?.merchant ?? "Transaction Receipt", [tx]);
 
@@ -79,6 +83,25 @@ export default function TransactionModal() {
         },
       ]
     );
+  };
+
+  const handleEdit = () => {
+    if (!tx) return;
+    setAddIntent({
+      mode: "text",
+      editTransaction: {
+        id: tx.id,
+        amount: tx.amount,
+        category: tx.category,
+        merchant: tx.merchant,
+        date: tx.date,
+        note: tx.note,
+        raw_text: tx.raw_text,
+        source: tx.source,
+        created_at: tx.created_at,
+      },
+    });
+    router.push("/add");
   };
 
   if (!tx) {
@@ -171,6 +194,23 @@ export default function TransactionModal() {
             </View>
           ) : null}
         </View>
+      </View>
+
+      <View className="flex-row gap-3 mb-6">
+        <Pressable
+          onPress={handleEdit}
+          className="flex-1 flex-row items-center justify-center gap-2 rounded-2xl bg-indigo-600 py-3.5 shadow-md active:scale-95"
+        >
+          <Ionicons name="create-outline" size={17} color="white" />
+          <Text className="text-white font-extrabold text-sm">{t("edit")}</Text>
+        </Pressable>
+        <Pressable
+          onPress={handleDelete}
+          className="flex-1 flex-row items-center justify-center gap-2 rounded-2xl bg-rose-50 border border-rose-100 py-3.5 active:scale-95"
+        >
+          <Ionicons name="trash-outline" size={17} color="#e11d48" />
+          <Text className="text-rose-600 font-extrabold text-sm">{t("delete")}</Text>
+        </Pressable>
       </View>
 
       {/* Done Button */}

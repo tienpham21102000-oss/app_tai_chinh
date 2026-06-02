@@ -10,10 +10,9 @@ import { useTransactionsStore } from "../../stores/transactions";
 import { usePreferencesStore } from "../../stores/preferences";
 import { useI18n } from "../../utils/i18n";
 import { formatMoneyVnd } from "../../utils/money";
+import { DEFAULT_BUDGET, getBudgetForMonth } from "../../utils/budget";
 
-const BUDGET_KEY = "monthly_budget_vnd";
 const SYNC_ENABLED_KEY = "supabase_sync_enabled";
-const DEFAULT_BUDGET = 5_000_000;
 
 export default function SettingsScreen() {
   const { t, language } = useI18n();
@@ -31,11 +30,10 @@ export default function SettingsScreen() {
       (async () => {
         try {
           await ensureDbReady();
-          const v = await getSetting(BUDGET_KEY);
-          const n = v ? Number(v) : DEFAULT_BUDGET;
+          const n = await getBudgetForMonth(new Date());
           const sync = await getSetting(SYNC_ENABLED_KEY);
           if (!active) return;
-          setMonthlyBudget(Number.isFinite(n) ? n : DEFAULT_BUDGET);
+          setMonthlyBudget(n);
           setSyncEnabled(sync === "1");
         } catch {
           // ignore
@@ -248,7 +246,7 @@ export default function SettingsScreen() {
             <View>
               <Text className="text-sm font-bold text-slate-800">{t("monthlyBudgetGoal")}</Text>
               <Text className="text-[10px] text-slate-400 font-medium">
-                Set to: {formatMoneyVnd(monthlyBudget)}
+                {language === "vi" ? "Đang đặt" : "Set to"}: {formatMoneyVnd(monthlyBudget)}
               </Text>
             </View>
           </View>

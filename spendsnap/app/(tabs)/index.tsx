@@ -9,11 +9,10 @@ import { ensureDbReady, getSetting, setSetting } from "../../services/db";
 import { isSameLocalDay } from "../../utils/dates";
 import { formatMoneyVnd } from "../../utils/money";
 import { useI18n, type I18nKey } from "../../utils/i18n";
+import { DEFAULT_BUDGET, getBudgetForMonth } from "../../utils/budget";
 
-const BUDGET_KEY = "monthly_budget_vnd";
 const PET_LEVEL_KEY = "pet_level";
 const PET_LAST_DATE_KEY = "pet_last_date";
-const DEFAULT_BUDGET = 5_000_000;
 
 // ─── Pet Evolution System ────────────────────────────────────────────────────
 function getPetEvolution(level: number, t: (key: I18nKey) => string) {
@@ -52,7 +51,7 @@ function getCategoryBg(category?: string | null): string {
 }
 
 export default function HomeScreen() {
-  const { transactions, refreshToday, deleteTransaction } = useTransactionsStore();
+  const { transactions, refreshToday } = useTransactionsStore();
   const setAddIntent = useAddIntentStore((s) => s.setIntent);
   const { t } = useI18n();
   const [now] = useState(() => new Date());
@@ -86,13 +85,13 @@ export default function HomeScreen() {
       (async () => {
         try {
           await ensureDbReady();
-          const [budgetStr, levelStr, lastDate] = await Promise.all([
-            getSetting(BUDGET_KEY),
+          const [budgetValue, levelStr, lastDate] = await Promise.all([
+            getBudgetForMonth(new Date()),
             getSetting(PET_LEVEL_KEY),
             getSetting(PET_LAST_DATE_KEY),
           ]);
           if (!active) return;
-          setMonthlyBudget(budgetStr ? (Number.isFinite(Number(budgetStr)) ? Number(budgetStr) : DEFAULT_BUDGET) : DEFAULT_BUDGET);
+          setMonthlyBudget(budgetValue);
           setPetLevel(levelStr ? Math.max(0, parseInt(levelStr, 10) || 0) : 0);
           setPetLastDate(lastDate || "");
           setPetLoaded(true);
@@ -293,14 +292,13 @@ export default function HomeScreen() {
       </View>
 
       {/* Main Budget Card */}
-      <View className="bg-indigo-600 rounded-3xl p-6 mb-4 shadow-xl relative overflow-hidden">
+      <View className="bg-indigo-600 rounded-3xl p-4 mb-3 shadow-xl relative overflow-hidden">
         <View className="absolute -right-16 -top-16 w-48 h-48 rounded-full bg-pink-500/30 blur-3xl" />
         <View className="absolute -left-16 -bottom-16 w-48 h-48 rounded-full bg-indigo-400/20 blur-3xl" />
 
         <View className="flex-row justify-between items-start">
           <View className="flex-1 pr-3">
-            <Text className="text-indigo-200 text-[10px] font-extrabold tracking-widest uppercase">{t("todayTotalSpent")}</Text>
-            <Text className="text-[13px] font-black text-white mt-1 tracking-tight">
+            <Text className="text-[13px] font-black text-white tracking-tight">
               {t("dailyBudget")}: <Text className="text-2xl">{formatMoneyVnd(dailyLimit)}</Text>
             </Text>
             <Text className="text-[12px] font-semibold text-indigo-100 mt-1">
@@ -310,7 +308,7 @@ export default function HomeScreen() {
         </View>
 
         {/* Daily limit progress */}
-        <View className="mt-5">
+        <View className="mt-3.5">
           <View className="flex-row justify-between items-center mb-1.5">
             <Text className="text-indigo-200 text-[9px] font-bold uppercase tracking-wider">{t("dailyUsage")}</Text>
             <Text className="text-[9px] font-black text-white">
@@ -325,15 +323,13 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        <View className="w-full h-[1px] bg-white/10 my-4" />
+        <View className="w-full h-[1px] bg-white/10 my-3" />
 
-        <View className="flex-row items-center justify-between">
-          <View>
-            <Text className="text-indigo-200 text-[9px] uppercase font-extrabold tracking-wider">{t("thisMonth")}</Text>
-            <Text className="text-base font-black text-white mt-0.5">
+        <View className="flex-row items-center">
+          <Text className="text-indigo-200 text-[9px] uppercase font-extrabold tracking-wider mr-3">{t("thisMonth")}</Text>
+          <Text className="text-base font-black text-white">
               {formatMoneyVnd(monthlyTotal)} / {formatMoneyVnd(monthlyBudget)} ({monthlySpentPercent}%)
-            </Text>
-          </View>
+          </Text>
         </View>
       </View>
 
@@ -553,15 +549,6 @@ export default function HomeScreen() {
                 <Text className="text-sm font-black text-slate-900">
                   -{formatMoneyVnd(item.amount)}
                 </Text>
-                <Pressable
-                  onPress={(event) => {
-                    event.stopPropagation();
-                    void deleteTransaction(item.id);
-                  }}
-                  className="w-7 h-7 rounded-full bg-rose-50 items-center justify-center active:scale-95"
-                >
-                  <Ionicons name="remove" size={14} color="#e11d48" />
-                </Pressable>
               </View>
               <Text className="text-[9px] text-slate-400 mt-0.5">
                 {item.note ? (item.note.length > 15 ? `${item.note.slice(0, 15)}...` : item.note) : t("noNote")}

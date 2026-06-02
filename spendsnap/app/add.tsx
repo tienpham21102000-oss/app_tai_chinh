@@ -23,6 +23,7 @@ import { formatMoneyVnd, parseMoneyToVnd } from "../utils/money";
 
 export default function AddModal() {
   const add = useTransactionsStore((s) => s.addFromDraft);
+  const update = useTransactionsStore((s) => s.updateFromDraft);
   const [raw, setRaw] = useState("");
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -50,6 +51,7 @@ export default function AddModal() {
   const pendingIntent = useAddIntentStore((s) => s.intent);
   const clearPendingIntent = useAddIntentStore((s) => s.clearIntent);
   const [activeIntent] = useState(pendingIntent);
+  const editTx = activeIntent?.editTransaction;
 
   function closeScreen() {
     router.dismissTo("/");
@@ -78,7 +80,16 @@ export default function AddModal() {
   useEffect(() => {
     if (!activeIntent || handledIntentRef.current) return;
     handledIntentRef.current = true;
-    if (activeIntent.mode === "text" && activeIntent.raw?.trim()) {
+    if (activeIntent.editTransaction) {
+      setDraft({
+        amount: activeIntent.editTransaction.amount,
+        merchant: activeIntent.editTransaction.merchant ?? null,
+        category: activeIntent.editTransaction.category ?? null,
+        date: activeIntent.editTransaction.date ?? null,
+        note: activeIntent.editTransaction.note ?? null,
+      });
+      setRaw(activeIntent.editTransaction.raw_text ?? "");
+    } else if (activeIntent.mode === "text" && activeIntent.raw?.trim()) {
       const text = activeIntent.raw.trim();
       setRaw(text);
       void extractAndSetDraft(text);
@@ -332,7 +343,7 @@ export default function AddModal() {
     setError(null);
     try {
       if (draft) {
-        await add({
+        const payload = {
           amount: draft.amount,
           merchant: draft.merchant ?? undefined,
           category: draft.category ?? undefined,
@@ -340,7 +351,12 @@ export default function AddModal() {
           note: draft.note ?? undefined,
           raw_text: raw,
           source: activeIntent?.mode === "camera" ? "camera_ocr" : activeIntent?.mode === "voice" ? "voice" : "manual_text",
-        });
+        };
+        if (editTx) {
+          await update(editTx.id, { ...payload, created_at: editTx.created_at ?? undefined, source: editTx.source ?? payload.source });
+        } else {
+          await add(payload);
+        }
         closeScreen();
         return;
       }

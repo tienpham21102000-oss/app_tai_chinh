@@ -4,14 +4,13 @@ import { startTransition, useCallback, useEffect, useMemo, useState } from "reac
 import { Pressable, ScrollView, Text, View } from "react-native";
 import Svg, { Circle, Path } from "react-native-svg";
 
-import { ensureDbReady, getSetting } from "../../services/db";
+import { ensureDbReady } from "../../services/db";
 import { useTransactionsStore } from "../../stores/transactions";
 import { useI18n } from "../../utils/i18n";
 import { formatMoneyVnd } from "../../utils/money";
 import { generateYearOfSpending } from "../../utils/simulate";
+import { DEFAULT_BUDGET, getBudgetForMonth, monthLabel } from "../../utils/budget";
 
-const BUDGET_KEY = "monthly_budget_vnd";
-const DEFAULT_BUDGET = 5_000_000;
 
 function getCategoryEmoji(category: string): string {
   const c = category.toLowerCase();
@@ -271,27 +270,33 @@ export default function AnalyticsScreen() {
 
   const weeklyCategoryTotals = useMemo(() => {
     const t: Array<Record<string, number>> = [];
-    for (let w = 0; w < 5; w++) t.push({ Food: 0, Drinks: 0, Travel: 0, Shopping: 0, Entertainment: 0, Bills: 0, Others: 0 });
-    calendarWeeks.slice(0, 5).forEach((wk, wi) => wk.forEach((d) => { const b = dailyCategoryBreakdown[d.dayStr]; if (!b) return; CATEGORY_ORDER.forEach((c) => { t[wi][c] += b[c] || 0; }); }));
+    for (let w = 0; w < calendarWeeks.length; w++) t.push({ Food: 0, Drinks: 0, Travel: 0, Shopping: 0, Entertainment: 0, Bills: 0, Others: 0 });
+    calendarWeeks.forEach((wk, wi) => wk.forEach((d) => { const b = dailyCategoryBreakdown[d.dayStr]; if (!b) return; CATEGORY_ORDER.forEach((c) => { t[wi][c] += b[c] || 0; }); }));
     return t;
   }, [calendarWeeks, dailyCategoryBreakdown]);
 
   const handleSeedDemoData = () => { setIsSeeding(true); try { seedDummyTransactions(generateYearOfSpending()); } finally { setIsSeeding(false); } };
   useEffect(() => { void refreshAll(); }, [refreshAll]);
-  useFocusEffect(useCallback(() => { let active = true; (async () => { try { await ensureDbReady(); const v = await getSetting(BUDGET_KEY); const n = v ? Number(v) : DEFAULT_BUDGET; if (!active) return; setMonthlyBudget(isFinite(n) ? n : DEFAULT_BUDGET); } catch {} })(); return () => { active = false; }; }, []));
+  useFocusEffect(useCallback(() => { let active = true; (async () => { try { await ensureDbReady(); const n = await getBudgetForMonth(selectedMonth); if (!active) return; setMonthlyBudget(n); } catch {} })(); return () => { active = false; }; }, [selectedMonth]));
 
-  const maxWeeks = Math.min(calendarWeeks.length, 5);
-  const COL_W = chartWidth > 0 ? (chartWidth - 20) / 12 : 30;
+  const maxWeeks = calendarWeeks.length;
   const LINE_H = 150;
 
   // Yearly chart data
   const yearlyChartData = useMemo(() => {
     const ac = activeCats;
     const mcd = ac.map((cat) => MONTH_LABELS.map((_, m) => { const k = `${selectedYear}-${String(m + 1).padStart(2, "0")}`; const b = monthlyCategoryBreakdown[k] || {}; return b[cat] || 0; }));
+    const monthTotals = MONTH_LABELS.map((_, m) => ac.reduce((sum, cat, ci) => sum + (mcd[ci]?.[m] || 0), 0));
+    const monthsWithSpending = monthTotals.map((total, idx) => total > 0 ? idx : -1).filter((idx) => idx >= 0);
+    const firstMonth = monthsWithSpending[0] ?? 0;
+    const lastMonth = monthsWithSpending[monthsWithSpending.length - 1] ?? 11;
+    const chartMonths = Array.from({ length: lastMonth - firstMonth + 1 }, (_, idx) => firstMonth + idx);
     const maxV = Math.max(1, ...mcd.flat());
     const getY = (val: number, h: number) => h - (val / maxV) * (h - 8);
-    return { activeCats: ac, monthCatData: mcd, maxCatValue: maxV, getY };
+    return { activeCats: ac, monthCatData: mcd, maxCatValue: maxV, getY, chartMonths };
   }, [activeCats, monthlyCategoryBreakdown, selectedYear]);
+
+  const COL_W = chartWidth > 0 ? (chartWidth - 28) / Math.max(yearlyChartData.chartMonths.length, 1) : 30;
 
   // Toggle a category on/off
   function toggleCategory(cat: string) {
@@ -318,7 +323,7 @@ export default function AnalyticsScreen() {
           <Pressable onPress={() => { const p = new Date(selectedMonth); p.setMonth(p.getMonth() - 1); setSelectedMonth(p); }} className="p-2 rounded-lg active:bg-slate-100">
             <Ionicons name="chevron-back" size={24} color="#334155" />
           </Pressable>
-          <Text className="text-lg font-black text-slate-900">{selectedMonth.toLocaleDateString(language === "vi" ? "vi-VN" : "en-US", { month: "long", year: "numeric" })}</Text>
+          <Text className="text-lg font-black text-slate-900">{monthLabel(selectedMonth, language)}</Text>
           <Pressable onPress={() => { const n = new Date(selectedMonth); n.setMonth(n.getMonth() + 1); setSelectedMonth(n); }} className="p-2 rounded-lg active:bg-slate-100">
             <Ionicons name="chevron-forward" size={24} color="#334155" />
           </Pressable>
@@ -379,7 +384,7 @@ export default function AnalyticsScreen() {
                 ))}
               </View>
               {/* Calendar grid */}
-              {calendarWeeks.slice(0, 5).map((wk, wi) => (
+              {calendarWeeks.map((wk, wi) => (
                 <View key={wi} style={{ flexDirection: "row", borderBottomWidth: wi < maxWeeks - 1 ? 0.5 : 0, borderBottomColor: "#e2e8f0" }}>
                   {wk.map((day, di) => {
                     const b = dailyCategoryBreakdown[day.dayStr] || {};
@@ -392,15 +397,16 @@ export default function AnalyticsScreen() {
                         <Text style={{ fontSize: 9, fontWeight: "bold", textAlign: "center", marginBottom: 2, color: day.isCurrentMonth ? (hasSpending ? "#1e293b" : "#94a3b8") : "#cbd5e1" }}>{day.date.getDate()}</Text>
                         <View style={{ height: 50, justifyContent: "flex-end", alignItems: "center" }}>
                           {hasSpending && (
-                            <View style={{ flexDirection: "row", alignItems: "flex-end", justifyContent: "center", gap: 1 }}>
+                            <View style={{ flexDirection: "row", alignItems: "flex-end", justifyContent: "center", gap: 1, maxWidth: "100%", overflow: "hidden" }}>
                               {visCats.map((cat) => {
                                 const amt = b[cat] || 0;
                                 const h = Math.max((amt / Math.max(maxCategoryAmount, 1)) * 42, 4);
+                                const barWidth = Math.max(3, Math.min(9, Math.floor(38 / Math.max(visCats.length, 1))));
                                 return (
                                   <View key={cat} style={{ alignItems: "center" }}>
-                                    <View style={{ height: h, width: 16, borderRadius: 1.5, backgroundColor: CATEGORY_HEX_COLORS[cat], justifyContent: "center", alignItems: "center" }}>
+                                    <View style={{ height: h, width: barWidth, borderRadius: 1.5, backgroundColor: CATEGORY_HEX_COLORS[cat], justifyContent: "center", alignItems: "center" }}>
                                       <Text style={{ fontSize: 5, fontWeight: "bold", color: "white", textAlign: "center", lineHeight: 6 }}>
-                                        {amt >= 1000000 ? `${(amt / 1000000).toFixed(1)}tr` : amt >= 1000 ? `${Math.round(amt / 1000)}k` : `${amt}`}
+                                        {barWidth >= 8 ? (amt >= 1000000 ? `${(amt / 1000000).toFixed(1)}tr` : amt >= 1000 ? `${Math.round(amt / 1000)}k` : `${amt}`) : ""}
                                       </Text>
                                     </View>
                                   </View>
@@ -484,7 +490,7 @@ export default function AnalyticsScreen() {
                   const ci = yearlyChartData.activeCats.indexOf(cat);
                   const cd = yearlyChartData.monthCatData[ci];
                   const color = CATEGORY_HEX_COLORS[cat];
-                  const pts = cd.map((amt, m) => ({ x: 20 + COL_W / 2 + m * COL_W, y: yearlyChartData.getY(amt, LINE_H - 12), amount: amt }));
+                  const pts = yearlyChartData.chartMonths.map((m, idx) => ({ x: 20 + COL_W / 2 + idx * COL_W, y: yearlyChartData.getY(cd[m] || 0, LINE_H - 12), amount: cd[m] || 0 }));
                   return (
                     <View key={cat}>
                       {pts.map((p, i) => {
@@ -499,7 +505,7 @@ export default function AnalyticsScreen() {
                         p.amount > 0 ? (
                           <Pressable
                             key={`marker-${i}`}
-                            onPress={() => startTransition(() => setTooltip({ x: p.x, y: p.y, text: `${cat}: ${formatMoneyVnd(p.amount)}` }))}
+                            onPress={() => startTransition(() => setTooltip({ x: p.x, y: p.y, text: `${categoryLabel(cat, t)}: ${formatMoneyVnd(p.amount)}` }))}
                             style={{ position: "absolute", left: p.x - 4, top: p.y - 4, width: 8, height: 8, borderRadius: 4, backgroundColor: color, borderWidth: 1, borderColor: "white", zIndex: 10 }}
                           />
                         ) : null
@@ -508,12 +514,12 @@ export default function AnalyticsScreen() {
                   );
                 })}
                 {/* X-axis labels */}
-                {MONTH_LABELS.map((l, m) => (
-                  <View key={m} style={{ position: "absolute", left: 20 + m * COL_W, top: LINE_H, width: COL_W, alignItems: "center" }}>
-                    <Text style={{ fontSize: 7, fontWeight: "bold", color: "#94a3b8" }}>{l}</Text>
+                {yearlyChartData.chartMonths.map((m, idx) => (
+                  <View key={m} style={{ position: "absolute", left: 20 + idx * COL_W, top: LINE_H, width: COL_W, alignItems: "center" }}>
+                    <Text style={{ fontSize: 7, fontWeight: "bold", color: "#94a3b8" }}>{MONTH_LABELS[m]}</Text>
                   </View>
                 ))}
-                <Text style={{ position: "absolute", right: 4, top: LINE_H + 14, fontSize: 8, fontWeight: "bold", color: "#64748b" }}>
+                <Text style={{ position: "absolute", left: 0, right: 0, top: LINE_H + 14, textAlign: "center", fontSize: 8, fontWeight: "bold", color: "#64748b" }}>
                   {t("monthAxis")}
                 </Text>
                 
@@ -571,7 +577,7 @@ export default function AnalyticsScreen() {
       )}
 
       {/* ── CATEGORY BREAKDOWN (both views) ── */}
-      <Text className="text-base font-black text-slate-800 mb-4 tracking-tight">{t("categoryBreakdown")}</Text>
+      <Text className="text-base font-black text-slate-800 mb-4 tracking-tight">{viewMode === "year" ? t("totalYearSpending") : t("categoryBreakdown")}</Text>
       {categorySummary.list.length === 0 ? (
         <View className="items-center py-12 px-6 bg-white border border-slate-100 rounded-3xl shadow-sm mb-6">
           <View className="w-16 h-16 rounded-full bg-slate-50 items-center justify-center mb-3">
@@ -589,7 +595,7 @@ export default function AnalyticsScreen() {
               const ct = wb.reduce((s, v) => s + v, 0);
               const bw = Math.max((ct / mx) * 100, 5);
               const ch = CATEGORY_HEX_COLORS[c.name] || "#6366f1";
-              const sc = generateShades(ch, 5);
+              const sc = generateShades(ch, weeklyCategoryTotals.length);
               const segs = wb.map((a, i) => ({ week: i + 1, amount: a, pct: ct > 0 ? (a / ct) * 100 : 0, color: sc[i] })).filter((s) => s.amount > 0);
               return (
                 <View key={c.name} className="mb-5 last:mb-0">

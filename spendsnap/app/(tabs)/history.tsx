@@ -100,7 +100,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#ffffff",
     borderColor: "#f1f5f9",
   },
-  csvButton: {
+  excelButton: {
     alignItems: "center",
     backgroundColor: "#0f172a",
     borderRadius: 16,
@@ -113,23 +113,23 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: "#ffffff",
     borderColor: "#f1f5f9",
-    borderRadius: 18,
+    borderRadius: 14,
     borderWidth: 1,
     elevation: 1,
     flexDirection: "row",
     justifyContent: "space-between",
-    marginBottom: 7,
-    minHeight: 62,
-    paddingHorizontal: 10,
-    paddingVertical: 9,
+    marginBottom: 5,
+    minHeight: 50,
+    paddingHorizontal: 8,
+    paddingVertical: 7,
     width: "100%",
   },
   iconBox: {
     alignItems: "center",
-    borderRadius: 14,
-    height: 40,
+    borderRadius: 12,
+    height: 34,
     justifyContent: "center",
-    width: 40,
+    width: 34,
   },
   dateHeader: {
     alignSelf: "flex-start",
@@ -199,12 +199,6 @@ function formatHistoryDate(value: string): string {
   if (isNaN(date.getTime())) return value;
   return `Ngày ${date.toLocaleDateString("vi-VN")}`;
 }
-function csvEscape(value: unknown): string {
-  const s = String(value ?? "");
-  if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
-  return s;
-}
-
 function htmlEscape(value: unknown): string {
   return String(value ?? "")
     .replace(/&/g, "&amp;")
@@ -418,14 +412,14 @@ export default function HistoryScreen() {
         >
           <View style={{ flexDirection: "row", alignItems: "center", gap: 9, flex: 1, minWidth: 0 }}>
             <View style={[styles.iconBox, { backgroundColor: getCategoryBgColor(categoryText) }]}>
-              <Text className="text-2xl">{emoji}</Text>
+              <Text className="text-xl">{emoji}</Text>
             </View>
             <View style={{ flex: 1, minWidth: 0 }}>
               <Text className="text-sm font-black text-slate-800" numberOfLines={1}>{merchantText}</Text>
               <Text className="text-[10px] text-slate-400 mt-0.5 font-bold uppercase tracking-wider">{categoryText}</Text>
             </View>
           </View>
-          <View style={{ alignItems: "flex-end", marginLeft: 8, maxWidth: 112 }}>
+          <View style={{ alignItems: "flex-end", marginLeft: 8, maxWidth: 130 }}>
             <Text className="text-sm font-black text-slate-900">-{formatMoneyVnd(amountValue)}</Text>
             <Text className="text-[9px] text-slate-400 mt-0.5" numberOfLines={1}>
               {noteText ? (noteText.length > 15 ? `${noteText.slice(0, 15)}...` : noteText) : t("noNote")}
@@ -461,7 +455,7 @@ export default function HistoryScreen() {
   };
 
   return (
-    <View className="flex-1 bg-[#f8fafc] px-3 pt-14">
+    <View className="flex-1 bg-[#f8fafc] px-2 pt-14">
       {/* Title */}
       <Text className="text-2xl font-black text-slate-900 mb-4 tracking-tight">{t("history")}</Text>
 
@@ -605,7 +599,7 @@ export default function HistoryScreen() {
             {t("sum")}: <Text className="text-indigo-600 font-black">{formatMoneyVnd(totalSum)}</Text>
           </Text>
         </View>
-        <Pressable onPress={onExportExcel} style={styles.csvButton}>
+        <Pressable onPress={onExportExcel} style={styles.excelButton}>
           <Ionicons name="download-outline" size={16} color="white" />
           <Text className="text-[10px] font-black text-white uppercase tracking-wider">{t("excel")}</Text>
         </Pressable>
