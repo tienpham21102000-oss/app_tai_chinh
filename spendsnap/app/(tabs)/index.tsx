@@ -338,7 +338,14 @@ export default function HomeScreen() {
       </View>
 
       <Text className="text-[11px] font-semibold text-slate-500 mb-4 px-2 text-center">
-        💡 Để không bị over budget, trung bình mỗi ngày còn lại trong tháng bạn chỉ nên chi tiêu dưới <Text className="font-black text-indigo-600">{formatMoneyVnd(recommendedDailyLimit)}</Text>.
+        {monthlyTotal > monthlyBudget ? (
+          <Text className="font-black text-rose-600">{t("overBudgetMessage")}</Text>
+        ) : (
+          <>
+            Để không bị over budget, trung bình mỗi ngày còn lại trong tháng bạn chỉ nên chi tiêu dưới{" "}
+            <Text className="font-black text-indigo-600">{formatMoneyVnd(recommendedDailyLimit)}</Text>.
+          </>
+        )}
       </Text>
 
       {/* ── Pet & Health Status Card ── */}
@@ -513,8 +520,8 @@ export default function HomeScreen() {
       {/* Latest Transactions Header */}
       <View className="flex-row items-center justify-between mb-4 mt-2">
         <View>
-          <Text className="text-base font-black text-slate-800 tracking-tight">Latest transaction</Text>
-          <Text className="text-[10px] text-slate-400 font-semibold mt-0.5">Chi tiêu mới sẽ xuất hiện ở đây ngay lập tức</Text>
+          <Text className="text-base font-black text-slate-800 tracking-tight">{t("latestTransaction")}</Text>
+          <Text className="text-[10px] text-slate-400 font-semibold mt-0.5">{t("latestTransactionHint")}</Text>
         </View>
       </View>
 
@@ -557,7 +564,7 @@ export default function HomeScreen() {
                 </Pressable>
               </View>
               <Text className="text-[9px] text-slate-400 mt-0.5">
-                {item.note ? (item.note.length > 15 ? `${item.note.slice(0, 15)}...` : item.note) : "No note"}
+                {item.note ? (item.note.length > 15 ? `${item.note.slice(0, 15)}...` : item.note) : t("noNote")}
               </Text>
             </View>
           </Pressable>

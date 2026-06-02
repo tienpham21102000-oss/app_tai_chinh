@@ -77,10 +77,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     flexDirection: "row",
     gap: 4,
-    marginBottom: 8,
+    marginBottom: 6,
     marginRight: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
   },
   categoryChipActive: {
     backgroundColor: "#4f46e5",
@@ -113,31 +113,32 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: "#ffffff",
     borderColor: "#f1f5f9",
-    borderRadius: 24,
+    borderRadius: 18,
     borderWidth: 1,
     elevation: 1,
     flexDirection: "row",
     justifyContent: "space-between",
-    marginBottom: 12,
-    minHeight: 82,
-    padding: 16,
+    marginBottom: 7,
+    minHeight: 62,
+    paddingHorizontal: 10,
+    paddingVertical: 9,
     width: "100%",
   },
   iconBox: {
     alignItems: "center",
-    borderRadius: 16,
-    height: 48,
+    borderRadius: 14,
+    height: 40,
     justifyContent: "center",
-    width: 48,
+    width: 40,
   },
   dateHeader: {
     alignSelf: "flex-start",
     backgroundColor: "#eef2ff",
     borderRadius: 999,
-    marginBottom: 8,
-    marginTop: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    marginBottom: 5,
+    marginTop: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
   },
   dateButton: {
     alignItems: "center",
@@ -408,7 +409,7 @@ export default function HistoryScreen() {
           }}
           style={({ pressed }) => [styles.transactionButton, pressed && { opacity: 0.75 }]}
         >
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 14, flex: 1, minWidth: 0 }}>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 9, flex: 1, minWidth: 0 }}>
             <View style={[styles.iconBox, { backgroundColor: getCategoryBgColor(categoryText) }]}>
               <Text className="text-2xl">{emoji}</Text>
             </View>
@@ -417,10 +418,10 @@ export default function HistoryScreen() {
               <Text className="text-[10px] text-slate-400 mt-0.5 font-bold uppercase tracking-wider">{categoryText}</Text>
             </View>
           </View>
-          <View style={{ alignItems: "flex-end", marginLeft: 12, maxWidth: 120 }}>
+          <View style={{ alignItems: "flex-end", marginLeft: 8, maxWidth: 112 }}>
             <Text className="text-sm font-black text-slate-900">-{formatMoneyVnd(amountValue)}</Text>
             <Text className="text-[9px] text-slate-400 mt-0.5" numberOfLines={1}>
-              {noteText ? (noteText.length > 15 ? `${noteText.slice(0, 15)}...` : noteText) : "No note"}
+              {noteText ? (noteText.length > 15 ? `${noteText.slice(0, 15)}...` : noteText) : t("noNote")}
             </Text>
           </View>
         </Pressable>
@@ -435,10 +436,27 @@ export default function HistoryScreen() {
     }
   }
 
+  const categoryLabelMap: Record<string, string> = {
+    all: t("all"),
+    food: t("food"),
+    coffee: t("drinks"),
+    transport: t("travel"),
+    shopping: t("shop"),
+    entertainment: t("fun"),
+    bills: t("bills"),
+    other: t("categories"),
+  };
+  const dateLabelMap: Record<DateFilterId, string> = {
+    all: t("dateAll"),
+    week: t("week"),
+    "30d": t("last30d"),
+    custom: t("custom"),
+  };
+
   return (
-    <View className="flex-1 bg-[#f8fafc] px-4 pt-14">
+    <View className="flex-1 bg-[#f8fafc] px-3 pt-14">
       {/* Title */}
-      <Text className="text-2xl font-black text-slate-900 mb-4 tracking-tight">Lịch sử giao dịch</Text>
+      <Text className="text-2xl font-black text-slate-900 mb-4 tracking-tight">{t("history")}</Text>
 
       {/* Search */}
       <View className="flex-row items-center rounded-2xl bg-white border border-slate-100 px-3.5 py-3 shadow-sm mb-4">
@@ -446,7 +464,7 @@ export default function HistoryScreen() {
         <TextInput
           value={query}
           onChangeText={setQuery}
-          placeholder="Tìm cửa hàng, danh mục, ghi chú..."
+          placeholder={t("historySearchPlaceholder")}
           placeholderTextColor="#94a3b8"
           className="flex-1 ml-2 text-xs font-semibold text-slate-800 outline-none text-left"
         />
@@ -473,7 +491,7 @@ export default function HistoryScreen() {
               >
                 <Text className="text-xs">{f.emoji}</Text>
                 <Text className={active ? "text-xs font-extrabold text-white" : "text-xs font-extrabold text-slate-600"}>
-                  {f.label}
+                  {categoryLabelMap[f.id] ?? f.label}
                 </Text>
               </Pressable>
             );
@@ -496,7 +514,7 @@ export default function HistoryScreen() {
                 ]}
               >
                 <Ionicons name={f.icon} size={14} color={active ? "white" : "#64748b"} />
-                <Text className={active ? "text-xs font-extrabold text-white" : "text-xs font-extrabold text-slate-600"}>{f.label}</Text>
+                <Text className={active ? "text-xs font-extrabold text-white" : "text-xs font-extrabold text-slate-600"}>{dateLabelMap[f.id]}</Text>
               </Pressable>
             );
           })}
@@ -574,7 +592,7 @@ export default function HistoryScreen() {
       <View className="flex-row justify-between items-center bg-white border border-slate-100 rounded-3xl px-4 py-3.5 mb-4 shadow-sm">
         <View>
           <Text className="text-[10px] font-black text-slate-400 uppercase tracking-wider">
-            {t("showing")} {filtered.length} entries
+            {t("showing")} {filtered.length} {t("entries")}
           </Text>
           <Text className="text-[10px] font-black text-slate-400 uppercase tracking-wider mt-0.5">
             {t("sum")}: <Text className="text-indigo-600 font-black">{formatMoneyVnd(totalSum)}</Text>
@@ -613,7 +631,7 @@ export default function HistoryScreen() {
             </View>
             <Text className="text-sm font-black text-slate-800">{t("noTransactions")}</Text>
             <Text className="text-xs text-slate-400 text-center mt-1">
-              Try searching with another keyword or clear the search query.
+              {t("noTransactionsHint")}
             </Text>
           </View>
         }

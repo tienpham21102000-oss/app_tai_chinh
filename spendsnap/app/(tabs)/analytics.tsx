@@ -2,9 +2,11 @@ import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "expo-router";
 import { startTransition, useCallback, useEffect, useMemo, useState } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
+import Svg, { Circle, Path } from "react-native-svg";
 
 import { ensureDbReady, getSetting } from "../../services/db";
 import { useTransactionsStore } from "../../stores/transactions";
+import { useI18n } from "../../utils/i18n";
 import { formatMoneyVnd } from "../../utils/money";
 import { generateYearOfSpending } from "../../utils/simulate";
 
@@ -58,6 +60,18 @@ function normalizeCategory(raw: string): string {
 
 type ViewMode = "month" | "year";
 
+function polarToCartesian(cx: number, cy: number, r: number, angle: number) {
+  const rad = (angle - 90) * Math.PI / 180;
+  return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) };
+}
+
+function describeSlice(cx: number, cy: number, r: number, startAngle: number, endAngle: number) {
+  const start = polarToCartesian(cx, cy, r, endAngle);
+  const end = polarToCartesian(cx, cy, r, startAngle);
+  const largeArcFlag = endAngle - startAngle <= 180 ? "0" : "1";
+  return `M ${cx} ${cy} L ${start.x} ${start.y} A ${r} ${r} 0 ${largeArcFlag} 0 ${end.x} ${end.y} Z`;
+}
+
 function generateShades(hex: string, count: number): string[] {
   const r = parseInt(hex.slice(1, 3), 16);
   const g = parseInt(hex.slice(3, 5), 16);
@@ -79,8 +93,71 @@ function safeDateKey(value?: string | null): string | null {
   return date.toISOString().slice(0, 10);
 }
 
+function YearCategoryPie({
+  categories,
+  total,
+  totalLabel,
+  spentLabel,
+}: {
+  categories: Array<{ name: string; amount: number; percentage: number }>;
+  total: number;
+  totalLabel: string;
+  spentLabel: string;
+}) {
+  return (
+    <View>
+      <View className="items-center mb-5">
+        <View className="relative items-center justify-center" style={{ width: 220, height: 220 }}>
+          <Svg width={220} height={220} viewBox="0 0 220 220">
+            {categories.length === 1 ? (
+              <Circle cx={110} cy={110} r={98} fill={CATEGORY_HEX_COLORS[categories[0].name] || "#6366f1"} />
+            ) : (
+              (() => {
+                let startAngle = 0;
+                return categories.map((c) => {
+                  const angle = (c.amount / Math.max(total, 1)) * 360;
+                  const endAngle = startAngle + angle;
+                  const path = describeSlice(110, 110, 98, startAngle, endAngle);
+                  startAngle = endAngle;
+                  return (
+                    <Path
+                      key={c.name}
+                      d={path}
+                      fill={CATEGORY_HEX_COLORS[c.name] || "#6366f1"}
+                      stroke="#ffffff"
+                      strokeWidth={2}
+                    />
+                  );
+                });
+              })()
+            )}
+            <Circle cx={110} cy={110} r={54} fill="#ffffff" />
+          </Svg>
+          <View className="absolute items-center px-4">
+            <Text className="text-[10px] font-black text-slate-400 uppercase tracking-wider text-center">{totalLabel}</Text>
+            <Text className="text-lg font-black text-slate-900 mt-1">{formatMoneyVnd(total)}</Text>
+          </View>
+        </View>
+      </View>
+      {categories.map((c) => (
+        <View key={c.name} className="mb-3 last:mb-0 flex-row items-center justify-between">
+          <View className="flex-row items-center gap-2.5 flex-1">
+            <View style={{ width: 12, height: 12, borderRadius: 3, backgroundColor: CATEGORY_HEX_COLORS[c.name] || "#6366f1" }} />
+            <View className="flex-1">
+              <Text className="text-xs font-black text-slate-800 uppercase tracking-wide">{c.name}</Text>
+              <Text className="text-[9px] text-slate-400">{c.percentage}% {spentLabel}</Text>
+            </View>
+          </View>
+          <Text className="text-xs font-black text-slate-800">{formatMoneyVnd(c.amount)}</Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
 export default function AnalyticsScreen() {
   const { transactions, refreshAll, seedDummyTransactions } = useTransactionsStore();
+  const { t, language } = useI18n();
   const [monthlyBudget, setMonthlyBudget] = useState<number>(DEFAULT_BUDGET);
   const [isSeeding, setIsSeeding] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>("month");
@@ -171,7 +248,13 @@ export default function AnalyticsScreen() {
     return { list: lst, total: tot };
   }, [monthlyTransactions, yearlyTransactions, viewMode]);
 
-  const budgetSpentPercent = useMemo(() => categorySummary.total === 0 ? 0 : Math.min(100, Math.round((categorySummary.total / monthlyBudget) * 100)), [categorySummary.total, monthlyBudget]);
+  const budgetSpentPercent = useMemo(() => {
+    if (!monthlyBudget || monthlyBudget <= 0) return 0;
+    return Math.round((categorySummary.total / monthlyBudget) * 100);
+  }, [categorySummary.total, monthlyBudget]);
+  const budgetLinePercent = Math.min(100, Math.max(0, budgetSpentPercent));
+  const remainingBudget = monthlyBudget - categorySummary.total;
+  const isOverBudget = remainingBudget < 0;
   const mainExpenseCategory = useMemo(() => categorySummary.list.length === 0 ? null : categorySummary.list[0], [categorySummary.list]);
 
   const weeklyCategoryTotals = useMemo(() => {
@@ -205,15 +288,15 @@ export default function AnalyticsScreen() {
 
   return (
     <ScrollView className="flex-1 bg-[#f8fafc] px-4 pt-14" showsVerticalScrollIndicator={false}>
-      <Text className="text-2xl font-black text-slate-900 mb-5 tracking-tight">Financial Analytics</Text>
+      <Text className="text-2xl font-black text-slate-900 mb-5 tracking-tight">{t("analytics")}</Text>
 
       {/* View Mode Toggle */}
       <View className="flex-row mb-6 bg-white border border-slate-100 rounded-3xl p-1 shadow-md">
         <Pressable onPress={() => setViewMode("month")} className={`flex-1 py-2.5 rounded-2xl items-center ${viewMode === "month" ? "bg-indigo-600" : "bg-transparent"}`}>
-          <Text className={`text-xs font-black ${viewMode === "month" ? "text-white" : "text-slate-500"}`}>Theo tháng</Text>
+          <Text className={`text-xs font-black ${viewMode === "month" ? "text-white" : "text-slate-500"}`}>{t("monthView")}</Text>
         </Pressable>
         <Pressable onPress={() => setViewMode("year")} className={`flex-1 py-2.5 rounded-2xl items-center ${viewMode === "year" ? "bg-indigo-600" : "bg-transparent"}`}>
-          <Text className={`text-xs font-black ${viewMode === "year" ? "text-white" : "text-slate-500"}`}>Theo năm</Text>
+          <Text className={`text-xs font-black ${viewMode === "year" ? "text-white" : "text-slate-500"}`}>{t("yearView")}</Text>
         </Pressable>
       </View>
 
@@ -223,7 +306,7 @@ export default function AnalyticsScreen() {
           <Pressable onPress={() => { const p = new Date(selectedMonth); p.setMonth(p.getMonth() - 1); setSelectedMonth(p); }} className="p-2 rounded-lg active:bg-slate-100">
             <Ionicons name="chevron-back" size={24} color="#334155" />
           </Pressable>
-          <Text className="text-lg font-black text-slate-900">{selectedMonth.toLocaleDateString("vi-VN", { month: "long", year: "numeric" })}</Text>
+          <Text className="text-lg font-black text-slate-900">{selectedMonth.toLocaleDateString(language === "vi" ? "vi-VN" : "en-US", { month: "long", year: "numeric" })}</Text>
           <Pressable onPress={() => { const n = new Date(selectedMonth); n.setMonth(n.getMonth() + 1); setSelectedMonth(n); }} className="p-2 rounded-lg active:bg-slate-100">
             <Ionicons name="chevron-forward" size={24} color="#334155" />
           </Pressable>
@@ -236,7 +319,7 @@ export default function AnalyticsScreen() {
           <Pressable onPress={() => setSelectedYear((y) => y - 1)} className="p-2 rounded-lg active:bg-slate-100">
             <Ionicons name="chevron-back" size={24} color="#334155" />
           </Pressable>
-          <Text className="text-lg font-black text-slate-900">Năm {selectedYear}</Text>
+          <Text className="text-lg font-black text-slate-900">{language === "vi" ? `Năm ${selectedYear}` : selectedYear}</Text>
           <Pressable onPress={() => setSelectedYear((y) => y + 1)} className="p-2 rounded-lg active:bg-slate-100">
             <Ionicons name="chevron-forward" size={24} color="#334155" />
           </Pressable>
@@ -249,19 +332,22 @@ export default function AnalyticsScreen() {
           <View className="absolute -right-8 -top-8 w-24 h-24 rounded-full bg-indigo-500/5 blur-lg" />
           <View className="flex-row justify-between items-center mb-4">
             <View>
-              <Text className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Remaining Budget</Text>
-              <Text className="text-2xl font-black text-slate-900 mt-1">{formatMoneyVnd(Math.max(0, monthlyBudget - categorySummary.total))}</Text>
+              <Text className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{t("remainingBudget")}</Text>
+              <Text className={`text-2xl font-black mt-1 ${isOverBudget ? "text-rose-600" : "text-slate-900"}`}>{formatMoneyVnd(remainingBudget)}</Text>
             </View>
-            <View className="bg-indigo-50 px-3 py-1.5 rounded-2xl border border-indigo-100">
-              <Text className="text-[10px] font-black text-indigo-600 uppercase tracking-wider">{budgetSpentPercent}% Spent</Text>
+            <View className={`px-3 py-1.5 rounded-2xl border ${isOverBudget ? "bg-rose-50 border-rose-100" : "bg-emerald-50 border-emerald-100"}`}>
+              <Text className={`text-[10px] font-black uppercase tracking-wider ${isOverBudget ? "text-rose-600" : "text-emerald-600"}`}>{budgetSpentPercent}% {t("spent")}</Text>
             </View>
           </View>
           <View className="w-full h-3.5 bg-slate-100 rounded-full overflow-hidden mb-3">
-            <View style={{ width: `${budgetSpentPercent}%` }} className="h-full bg-indigo-600 rounded-full" />
+            <View
+              style={{ width: `${budgetLinePercent}%`, backgroundColor: isOverBudget ? "#ef4444" : "#10b981" }}
+              className="h-full rounded-full"
+            />
           </View>
           <View className="flex-row justify-between items-center">
-            <Text className="text-[10px] font-bold text-slate-400">Spent: {formatMoneyVnd(categorySummary.total)}</Text>
-            <Text className="text-[10px] font-bold text-slate-400">Total Limit: {formatMoneyVnd(monthlyBudget)}</Text>
+            <Text className="text-[10px] font-bold text-slate-400">{t("spent")}: {formatMoneyVnd(categorySummary.total)}</Text>
+            <Text className="text-[10px] font-bold text-slate-400">{t("totalLimit")}: {formatMoneyVnd(monthlyBudget)}</Text>
           </View>
         </View>
       )}
@@ -470,14 +556,14 @@ export default function AnalyticsScreen() {
       )}
 
       {/* ── CATEGORY BREAKDOWN (both views) ── */}
-      <Text className="text-base font-black text-slate-800 mb-4 tracking-tight">Category Breakdown</Text>
+      <Text className="text-base font-black text-slate-800 mb-4 tracking-tight">{t("categoryBreakdown")}</Text>
       {categorySummary.list.length === 0 ? (
         <View className="items-center py-12 px-6 bg-white border border-slate-100 rounded-3xl shadow-sm mb-6">
           <View className="w-16 h-16 rounded-full bg-slate-50 items-center justify-center mb-3">
             <Ionicons name="pie-chart-outline" size={28} color="#94a3b8" />
           </View>
-          <Text className="text-sm font-black text-slate-800">No data to analyze</Text>
-          <Text className="text-xs text-slate-400 text-center mt-1">Log some transactions first to generate dynamic statistics!</Text>
+          <Text className="text-sm font-black text-slate-800">{t("noData")}</Text>
+          <Text className="text-xs text-slate-400 text-center mt-1">{t("noDataHint")}</Text>
         </View>
       ) : viewMode === "month" ? (
         <View className="bg-white border border-slate-100 rounded-3xl p-5 shadow-md mb-6">
@@ -525,7 +611,13 @@ export default function AnalyticsScreen() {
         </View>
       ) : (
         <View className="bg-white border border-slate-100 rounded-3xl p-5 shadow-md mb-6">
-          {(() => {
+          <YearCategoryPie
+            categories={categorySummary.list}
+            total={categorySummary.total}
+            totalLabel={t("totalYearSpending")}
+            spentLabel={t("spent")}
+          />
+          {false && (() => {
             const mx = Math.max(...categorySummary.list.map((c) => c.amount), 1);
             return categorySummary.list.map((c, i) => {
               const barColors = ["bg-indigo-500","bg-emerald-500","bg-amber-500","bg-violet-500","bg-rose-500","bg-sky-500","bg-slate-400"];

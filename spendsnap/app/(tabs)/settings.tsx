@@ -1,4 +1,4 @@
-import { ScrollView, Text, View, Pressable, Switch, Alert } from "react-native";
+import { ScrollView, Text, View, Pressable, Switch, Alert, Modal, TextInput } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useCallback, useState } from "react";
 import { router, useFocusEffect } from "expo-router";
@@ -22,6 +22,8 @@ export default function SettingsScreen() {
   const [notifyEnabled, setNotifyEnabled] = useState(true);
   const resetAll = useTransactionsStore((s) => s.resetAll);
   const [monthlyBudget, setMonthlyBudget] = useState<number>(DEFAULT_BUDGET);
+  const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
+  const [resetConfirmText, setResetConfirmText] = useState("");
 
   useFocusEffect(
     useCallback(() => {
@@ -70,25 +72,24 @@ export default function SettingsScreen() {
   };
 
   const handleResetData = () => {
-    Alert.alert(
-      "Confirm Reset",
-      "Are you sure you want to delete all transaction data? This action cannot be undone.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Reset",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await resetAll();
-              Alert.alert("Done", "Local database has been reset.");
-            } catch (e) {
-              Alert.alert("Reset failed", e instanceof Error ? e.message : "Unknown error");
-            }
-          },
-        },
-      ]
-    );
+    setResetConfirmText("");
+    setResetConfirmOpen(true);
+  };
+
+  const confirmResetData = async () => {
+    const normalized = resetConfirmText.trim().toLowerCase();
+    if (normalized !== "đồng ý" && normalized !== "dong y" && normalized !== "yes") {
+      Alert.alert(t("resetFailed"), t("resetDatabaseWrong"));
+      return;
+    }
+    try {
+      await resetAll();
+      setResetConfirmOpen(false);
+      setResetConfirmText("");
+      Alert.alert(t("done"), t("resetDatabaseDone"));
+    } catch (e) {
+      Alert.alert(t("resetFailed"), e instanceof Error ? e.message : "Unknown error");
+    }
   };
 
   const safePush = (route: any) => {
@@ -101,8 +102,38 @@ export default function SettingsScreen() {
 
   return (
     <ScrollView className="flex-1 bg-[#f8fafc] px-4 pt-14" showsVerticalScrollIndicator={false}>
+      <Modal transparent visible={resetConfirmOpen} animationType="fade" onRequestClose={() => setResetConfirmOpen(false)}>
+        <View className="flex-1 bg-black/40 justify-center px-6">
+          <View className="bg-white rounded-3xl p-5 border border-slate-100">
+            <Text className="text-lg font-black text-slate-900">{t("confirmResetTitle")}</Text>
+            <Text className="text-xs text-slate-500 mt-2 leading-5">{t("confirmResetInput")}</Text>
+            <TextInput
+              value={resetConfirmText}
+              onChangeText={setResetConfirmText}
+              autoCapitalize="none"
+              placeholder={language === "vi" ? "đồng ý" : "yes"}
+              placeholderTextColor="#94a3b8"
+              className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold text-slate-900"
+            />
+            <View className="flex-row gap-2 mt-4">
+              <Pressable
+                onPress={() => setResetConfirmOpen(false)}
+                className="flex-1 rounded-2xl bg-slate-100 py-3 items-center active:opacity-70"
+              >
+                <Text className="text-xs font-black text-slate-600">{t("cancel")}</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => void confirmResetData()}
+                className="flex-1 rounded-2xl bg-rose-600 py-3 items-center active:opacity-70"
+              >
+                <Text className="text-xs font-black text-white">{t("reset")}</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
       {/* Title */}
-      <Text className="text-2xl font-bold text-slate-900 mb-6">Cài đặt</Text>
+      <Text className="text-2xl font-bold text-slate-900 mb-6">{t("settings")}</Text>
 
       {/* Profile Card */}
       <View className="flex-row items-center bg-white border border-slate-100 rounded-3xl p-5 shadow-sm mb-6">
@@ -114,15 +145,15 @@ export default function SettingsScreen() {
           <Text className="text-xs text-slate-400 font-semibold">Tier: SpendSnap Pro 🚀</Text>
         </View>
         <Pressable
-          onPress={() => Alert.alert("Coming soon", "Profile editing will be available soon.")}
+          onPress={() => Alert.alert("Coming soon", t("profileComingSoon"))}
           className="bg-indigo-50 px-3.5 py-2 rounded-2xl active:scale-95"
         >
-          <Text className="text-xs font-bold text-indigo-600">Edit</Text>
+          <Text className="text-xs font-bold text-indigo-600">{t("edit")}</Text>
         </Pressable>
       </View>
 
       {/* Settings Sections */}
-      <Text className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 px-1">Tùy chọn</Text>
+      <Text className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 px-1">{t("options")}</Text>
       <View className="bg-white border border-slate-100 rounded-3xl overflow-hidden mb-6 shadow-sm">
         <View className="px-5 py-4 border-b border-slate-50">
           <View className="flex-row items-center gap-3.5 mb-3">
@@ -131,7 +162,7 @@ export default function SettingsScreen() {
             </View>
             <View>
               <Text className="text-sm font-bold text-slate-800">{t("language")}</Text>
-              <Text className="text-[10px] text-slate-400 font-medium">Sync app copy across screens</Text>
+              <Text className="text-[10px] text-slate-400 font-medium">{t("languageSubtitle")}</Text>
             </View>
           </View>
           <View className="flex-row gap-2">
@@ -160,8 +191,8 @@ export default function SettingsScreen() {
               <Ionicons name="cloud-upload-outline" size={18} color="#0284c7" />
             </View>
             <View>
-              <Text className="text-sm font-bold text-slate-800">Supabase Cloud Sync</Text>
-              <Text className="text-[10px] text-slate-400 font-medium">Backup new transactions automatically and keep local entries in sync</Text>
+              <Text className="text-sm font-bold text-slate-800">{t("sync")}</Text>
+              <Text className="text-[10px] text-slate-400 font-medium">{t("syncHint")}</Text>
             </View>
           </View>
           <Switch
@@ -179,8 +210,8 @@ export default function SettingsScreen() {
               <Ionicons name="notifications-outline" size={18} color="#4f46e5" />
             </View>
             <View>
-              <Text className="text-sm font-bold text-slate-800">Daily Reminders</Text>
-              <Text className="text-[10px] text-slate-400 font-medium">Alert me to record my expenses</Text>
+              <Text className="text-sm font-bold text-slate-800">{t("dailyReminders")}</Text>
+              <Text className="text-[10px] text-slate-400 font-medium">{t("dailyRemindersHint")}</Text>
             </View>
           </View>
           <Switch
@@ -198,8 +229,8 @@ export default function SettingsScreen() {
               <Ionicons name="cash-outline" size={18} color="#d97706" />
             </View>
             <View>
-              <Text className="text-sm font-bold text-slate-800">Default Currency</Text>
-              <Text className="text-[10px] text-slate-400 font-medium">Vietnamese unit (k)</Text>
+              <Text className="text-sm font-bold text-slate-800">{t("defaultCurrency")}</Text>
+              <Text className="text-[10px] text-slate-400 font-medium">{t("defaultCurrencyHint")}</Text>
             </View>
           </View>
           <Ionicons name="chevron-forward" size={16} color="#94a3b8" />
@@ -215,7 +246,7 @@ export default function SettingsScreen() {
               <Ionicons name="calculator-outline" size={18} color="#059669" />
             </View>
             <View>
-              <Text className="text-sm font-bold text-slate-800">Monthly Budget Goal</Text>
+              <Text className="text-sm font-bold text-slate-800">{t("monthlyBudgetGoal")}</Text>
               <Text className="text-[10px] text-slate-400 font-medium">
                 Set to: {formatMoneyVnd(monthlyBudget)}
               </Text>
@@ -234,15 +265,15 @@ export default function SettingsScreen() {
               <Ionicons name="pricetags-outline" size={18} color="#7c3aed" />
             </View>
             <View>
-              <Text className="text-sm font-bold text-slate-800">Categories</Text>
-              <Text className="text-[10px] text-slate-400 font-medium">Manage labels, icons, and budgets</Text>
+              <Text className="text-sm font-bold text-slate-800">{t("categories")}</Text>
+              <Text className="text-[10px] text-slate-400 font-medium">{t("manageCategoriesHint")}</Text>
             </View>
           </View>
           <Ionicons name="chevron-forward" size={16} color="#94a3b8" />
         </Pressable>
       </View>
 
-      <Text className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 px-1">Bảo mật & bảo trì</Text>
+      <Text className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 px-1">{t("maintenance")}</Text>
       <View className="bg-white border border-slate-100 rounded-3xl overflow-hidden mb-6 shadow-sm">
         {/* API Key Status */}
         <View className="flex-row items-center justify-between px-5 py-4 border-b border-slate-50">
@@ -252,7 +283,7 @@ export default function SettingsScreen() {
             </View>
             <View>
               <Text className="text-sm font-bold text-slate-800">OpenAI API Connection</Text>
-              <Text className="text-[10px] text-emerald-500 font-bold uppercase">CONNECTED & LIVE ✨</Text>
+              <Text className="text-[10px] text-emerald-500 font-bold uppercase">{t("connectedLive")}</Text>
             </View>
           </View>
         </View>
@@ -264,8 +295,8 @@ export default function SettingsScreen() {
               <Ionicons name="trash-outline" size={18} color="#e11d48" />
             </View>
             <View>
-              <Text className="text-sm font-bold text-rose-600">Reset Local Database</Text>
-              <Text className="text-[10px] text-slate-400 font-medium">Wipe all logged cash transaction history</Text>
+              <Text className="text-sm font-bold text-rose-600">{t("resetDatabase")}</Text>
+              <Text className="text-[10px] text-slate-400 font-medium">{t("resetDatabaseHint")}</Text>
             </View>
           </View>
           <Ionicons name="chevron-forward" size={16} color="#94a3b8" />
