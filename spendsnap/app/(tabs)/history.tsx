@@ -189,9 +189,9 @@ function formatYmdLocal(date: Date): string {
   return `${y}-${m}-${d}`;
 }
 
-function formatShortDate(ymd: string): string {
+function formatShortDate(ymd: string, locale: string): string {
   const d = parseIsoDateYmd(ymd);
-  return d ? d.toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit" }) : "Select";
+  return d ? d.toLocaleDateString(locale, { day: "2-digit", month: "2-digit", year: "numeric" }) : "Select";
 }
 
 function formatHistoryDate(value: string): string {
@@ -203,6 +203,14 @@ function csvEscape(value: unknown): string {
   const s = String(value ?? "");
   if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
   return s;
+}
+
+function htmlEscape(value: unknown): string {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
 }
 
 function matchesCategory(c: string, filterId: string): boolean {
@@ -351,30 +359,29 @@ export default function HistoryScreen() {
     return entries;
   }, [filtered]);
 
-  async function onExportCsv() {
+  async function onExportExcel() {
     try {
       const header = ["id", "amount_k", "category", "merchant", "date", "note", "source", "created_at"];
-      const lines = [
-        header.join(","),
-        ...filtered.map((t) =>
-          [
-            csvEscape(t.id),
-            csvEscape(Math.round(Number(t.amount || 0) / 1000)),
-            csvEscape(t.category ?? ""),
-            csvEscape(t.merchant ?? ""),
-            csvEscape(t.date),
-            csvEscape(t.note ?? ""),
-            csvEscape(t.source ?? ""),
-            csvEscape(t.created_at),
-          ].join(",")
-        ),
-      ];
-      const csv = `\ufeff${lines.join("\n")}`;
+      const rows = filtered.map((tx) => [
+        tx.id,
+        Math.round(Number(tx.amount || 0) / 1000),
+        tx.category ?? "",
+        tx.merchant ?? "",
+        tx.date,
+        tx.note ?? "",
+        tx.source ?? "",
+        tx.created_at,
+      ]);
+      const html = `<!doctype html><html><head><meta charset="utf-8" /></head><body><table border="1"><thead><tr>${header
+        .map((h) => `<th>${htmlEscape(h)}</th>`)
+        .join("")}</tr></thead><tbody>${rows
+        .map((row) => `<tr>${row.map((cell) => `<td>${htmlEscape(cell)}</td>`).join("")}</tr>`)
+        .join("")}</tbody></table></body></html>`;
       const ymd = new Date().toISOString().slice(0, 10);
-      const fileName = `spendsnap_transactions_${ymd}.csv`;
+      const fileName = `spendsnap_transactions_${ymd}.xls`;
 
       if (Platform.OS === "web") {
-        const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+        const blob = new Blob([html], { type: "application/vnd.ms-excel;charset=utf-8" });
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url; a.download = fileName; a.click();
@@ -385,12 +392,12 @@ export default function HistoryScreen() {
       const dir = FileSystem.cacheDirectory ?? FileSystem.documentDirectory;
       if (!dir) throw new Error("No writable directory available.");
       const uri = `${dir}${fileName}`;
-      await FileSystem.writeAsStringAsync(uri, csv, { encoding: FileSystem.EncodingType.UTF8 });
+      await FileSystem.writeAsStringAsync(uri, html, { encoding: FileSystem.EncodingType.UTF8 });
       const canShare = await Sharing.isAvailableAsync();
-      if (!canShare) { Alert.alert("Exported", `Saved to: ${uri}`); return; }
-      await Sharing.shareAsync(uri, { mimeType: "text/csv", dialogTitle: "Export CSV", UTI: "public.comma-separated-values-text" });
+      if (!canShare) { Alert.alert(t("exported"), `Saved to: ${uri}`); return; }
+      await Sharing.shareAsync(uri, { mimeType: "application/vnd.ms-excel", dialogTitle: t("excel") });
     } catch (e) {
-      Alert.alert("Export failed", e instanceof Error ? e.message : "Unknown error");
+      Alert.alert(t("excelExportFailed"), e instanceof Error ? e.message : "Unknown error");
     }
   }
 
@@ -529,14 +536,14 @@ export default function HistoryScreen() {
               style={[styles.dateButton, calendarTarget === "from" && styles.dateButtonActive]}
             >
             <Text className="text-[9px] text-slate-400 font-black uppercase tracking-wider mb-1">{t("from")}</Text>
-              <Text className="text-xs font-black text-slate-800">{formatShortDate(customFrom)}</Text>
+              <Text className="text-xs font-black text-slate-800">{formatShortDate(customFrom, language === "vi" ? "vi-VN" : "en-US")}</Text>
             </Pressable>
             <Pressable
               onPress={() => openCalendar("to")}
               style={[styles.dateButton, calendarTarget === "to" && styles.dateButtonActive]}
             >
               <Text className="text-[9px] text-slate-400 font-black uppercase tracking-wider mb-1">{t("to")}</Text>
-              <Text className="text-xs font-black text-slate-800">{formatShortDate(customTo)}</Text>
+              <Text className="text-xs font-black text-slate-800">{formatShortDate(customTo, language === "vi" ? "vi-VN" : "en-US")}</Text>
             </Pressable>
           </View>
 
@@ -598,9 +605,9 @@ export default function HistoryScreen() {
             {t("sum")}: <Text className="text-indigo-600 font-black">{formatMoneyVnd(totalSum)}</Text>
           </Text>
         </View>
-        <Pressable onPress={onExportCsv} style={styles.csvButton}>
+        <Pressable onPress={onExportExcel} style={styles.csvButton}>
           <Ionicons name="download-outline" size={16} color="white" />
-          <Text className="text-[10px] font-black text-white uppercase tracking-wider">CSV</Text>
+          <Text className="text-[10px] font-black text-white uppercase tracking-wider">{t("excel")}</Text>
         </Pressable>
       </View>
 

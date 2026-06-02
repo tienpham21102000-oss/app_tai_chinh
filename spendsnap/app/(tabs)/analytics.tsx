@@ -45,7 +45,7 @@ const CATEGORY_TAILWIND_COLORS: Record<string, string> = {
   Shopping: "bg-purple-500", Entertainment: "bg-rose-500", Bills: "bg-emerald-500", Others: "bg-slate-400",
 };
 const WEEKDAY_LABELS = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"];
-const MONTH_LABELS = ["T1","T2","T3","T4","T5","T6","T7","T8","T9","T10","T11","T12"];
+const MONTH_LABELS = ["1","2","3","4","5","6","7","8","9","10","11","12"];
 
 function normalizeCategory(raw: string): string {
   const norm = raw.toLowerCase();
@@ -56,6 +56,16 @@ function normalizeCategory(raw: string): string {
   if (norm.includes("phim") || norm.includes("chơi") || norm.includes("nhạc") || norm.includes("entertainment") || norm.includes("game")) return "Entertainment";
   if (norm.includes("điện") || norm.includes("nước") || norm.includes("bill") || norm.includes("internet")) return "Bills";
   return "Others";
+}
+
+function categoryLabel(category: string, t: (key: any) => string): string {
+  if (category === "Food") return t("food");
+  if (category === "Drinks") return t("drinks");
+  if (category === "Travel") return t("travel");
+  if (category === "Shopping") return t("shop");
+  if (category === "Entertainment") return t("fun");
+  if (category === "Bills") return t("bills");
+  return t("categories");
 }
 
 type ViewMode = "month" | "year";
@@ -98,11 +108,13 @@ function YearCategoryPie({
   total,
   totalLabel,
   spentLabel,
+  labelForCategory,
 }: {
   categories: Array<{ name: string; amount: number; percentage: number }>;
   total: number;
   totalLabel: string;
   spentLabel: string;
+  labelForCategory: (category: string) => string;
 }) {
   return (
     <View>
@@ -134,7 +146,7 @@ function YearCategoryPie({
             <Circle cx={110} cy={110} r={54} fill="#ffffff" />
           </Svg>
           <View className="absolute items-center px-4">
-            <Text className="text-[10px] font-black text-slate-400 uppercase tracking-wider text-center">{totalLabel}</Text>
+            <Text className="text-[10px] font-black text-slate-900 uppercase tracking-wider text-center">{totalLabel}</Text>
             <Text className="text-lg font-black text-slate-900 mt-1">{formatMoneyVnd(total)}</Text>
           </View>
         </View>
@@ -144,7 +156,7 @@ function YearCategoryPie({
           <View className="flex-row items-center gap-2.5 flex-1">
             <View style={{ width: 12, height: 12, borderRadius: 3, backgroundColor: CATEGORY_HEX_COLORS[c.name] || "#6366f1" }} />
             <View className="flex-1">
-              <Text className="text-xs font-black text-slate-800 uppercase tracking-wide">{c.name}</Text>
+              <Text className="text-xs font-black text-slate-800 uppercase tracking-wide">{labelForCategory(c.name)}</Text>
               <Text className="text-[9px] text-slate-400">{c.percentage}% {spentLabel}</Text>
             </View>
           </View>
@@ -355,7 +367,7 @@ export default function AnalyticsScreen() {
       {/* ── MONTHLY VIEW ── */}
       {viewMode === "month" && (
         <>
-          <Text className="text-base font-black text-slate-800 mb-4 tracking-tight">Chi tiêu theo tuần</Text>
+          <Text className="text-base font-black text-slate-800 mb-4 tracking-tight">{t("weekSpending")}</Text>
           <View className="bg-white border border-slate-100 rounded-3xl p-4 shadow-md mb-6">
             <View style={{ borderWidth: 0.5, borderColor: "#e2e8f0", borderRadius: 6, overflow: "hidden" }}>
               {/* Weekday header */}
@@ -406,7 +418,7 @@ export default function AnalyticsScreen() {
 
             {/* ── Clickable Legend (replaces standalone toggle panel) ── */}
             <View className="mt-4 pt-3 border-t border-slate-100">
-              <Text className="text-[9px] font-bold text-slate-400 uppercase mb-2">Chú thích · Nhấn để ẩn/hiện</Text>
+              <Text className="text-[9px] font-bold text-slate-400 uppercase mb-2">{t("legendToggle")}</Text>
               <View className="flex-row flex-wrap gap-x-3 gap-y-2">
                 {CATEGORY_ORDER.map((cat) => {
                   const active = visibleCategories[cat];
@@ -434,7 +446,7 @@ export default function AnalyticsScreen() {
                           textDecorationLine: active ? "none" : "line-through",
                         }}
                       >
-                        {cat}
+                        {categoryLabel(cat, t)}
                       </Text>
                     </Pressable>
                   );
@@ -449,7 +461,7 @@ export default function AnalyticsScreen() {
       {viewMode === "year" && (
         <>
           {/* Line chart only — bar chart removed */}
-          <Text className="text-base font-black text-slate-800 mb-4 tracking-tight">Xu hướng chi tiêu</Text>
+          <Text className="text-base font-black text-slate-800 mb-4 tracking-tight">{t("yearlyTrend")}</Text>
           <View 
             className="bg-white border border-slate-100 rounded-3xl p-4 shadow-md mb-6"
             onLayout={(e) => setChartWidth(e.nativeEvent.layout.width - 32)}
@@ -501,6 +513,9 @@ export default function AnalyticsScreen() {
                     <Text style={{ fontSize: 7, fontWeight: "bold", color: "#94a3b8" }}>{l}</Text>
                   </View>
                 ))}
+                <Text style={{ position: "absolute", right: 4, top: LINE_H + 14, fontSize: 8, fontWeight: "bold", color: "#64748b" }}>
+                  {t("monthAxis")}
+                </Text>
                 
                 {/* Tooltip */}
                 {tooltip && (
@@ -516,7 +531,7 @@ export default function AnalyticsScreen() {
 
             {/* ── Clickable Legend for year view ── */}
             <View className="mt-4 pt-3 border-t border-slate-100">
-              <Text className="text-[9px] font-bold text-slate-400 uppercase mb-2">Chú thích · Nhấn để ẩn/hiện</Text>
+              <Text className="text-[9px] font-bold text-slate-400 uppercase mb-2">{t("legendToggle")}</Text>
               <View className="flex-row flex-wrap gap-x-3 gap-y-2">
                 {CATEGORY_ORDER.map((cat) => {
                   const active = visibleCategories[cat];
@@ -544,7 +559,7 @@ export default function AnalyticsScreen() {
                           textDecorationLine: active ? "none" : "line-through",
                         }}
                       >
-                        {cat}
+                        {categoryLabel(cat, t)}
                       </Text>
                     </Pressable>
                   );
@@ -581,7 +596,7 @@ export default function AnalyticsScreen() {
                   <View className="flex-row justify-between items-center mb-2">
                     <View className="flex-row items-center gap-2.5">
                       <View className={`w-9 h-9 rounded-xl items-center justify-center ${getCategoryBg(c.name)}`}><Text className="text-lg">{getCategoryEmoji(c.name)}</Text></View>
-                      <View><Text className="text-xs font-black text-slate-800 uppercase tracking-wide">{c.name}</Text><Text className="text-[9px] text-slate-400">{c.percentage}% tổng chi tiêu</Text></View>
+                      <View><Text className="text-xs font-black text-slate-800 uppercase tracking-wide">{categoryLabel(c.name, t)}</Text><Text className="text-[9px] text-slate-400">{c.percentage}% {t("spent")}</Text></View>
                     </View>
                     <Text className="text-xs font-black text-slate-800">{formatMoneyVnd(ct)}</Text>
                   </View>
@@ -599,7 +614,7 @@ export default function AnalyticsScreen() {
                       {segs.map((s) => (
                         <View key={s.week} className="flex-row items-center gap-1.5">
                           <View style={{ width: 12, height: 12, borderRadius: 3, backgroundColor: s.color }} />
-                          <Text style={{ fontSize: 9, fontWeight: "bold", color: "#475569" }}>Tuần {s.week}: {formatMoneyVnd(s.amount)}</Text>
+                          <Text style={{ fontSize: 9, fontWeight: "bold", color: "#475569" }}>{t("week")} {s.week}: {formatMoneyVnd(s.amount)}</Text>
                         </View>
                       ))}
                     </View>
@@ -616,6 +631,7 @@ export default function AnalyticsScreen() {
             total={categorySummary.total}
             totalLabel={t("totalYearSpending")}
             spentLabel={t("spent")}
+            labelForCategory={(category) => categoryLabel(category, t)}
           />
           {false && (() => {
             const mx = Math.max(...categorySummary.list.map((c) => c.amount), 1);
@@ -642,7 +658,7 @@ export default function AnalyticsScreen() {
       )}
 
       {/* ── SMART INSIGHTS ── */}
-      <Text className="text-base font-black text-slate-800 mb-3 tracking-tight">Smart Insights</Text>
+      <Text className="text-base font-black text-slate-800 mb-3 tracking-tight">{t("aiAdvice")}</Text>
       <View className="bg-slate-900 rounded-3xl p-5 shadow-xl relative overflow-hidden mb-12">
         <View className="absolute -right-8 -top-8 w-24 h-24 rounded-full bg-indigo-500/20 blur-xl" />
         <View className="flex-row items-start gap-3">
@@ -650,25 +666,29 @@ export default function AnalyticsScreen() {
             <Ionicons name="sparkles" size={14} color="#a78bfa" />
           </View>
           <View className="flex-1">
-            <Text className="text-sm font-black text-white tracking-tight">AI Assistant Advice</Text>
+            <Text className="text-sm font-black text-white tracking-tight">{t("aiAssistantAdvice")}</Text>
             {mainExpenseCategory ? (
               <Text className="text-xs text-slate-300 mt-1.5 leading-relaxed">
-                Bạn đã dành ngân sách nhiều nhất cho danh mục{" "}
-                <Text className="font-black text-indigo-300 uppercase">{mainExpenseCategory.name}</Text>{" "}
+                {t("yearlyInsightPrefix")}{" "}
+                <Text className="font-black text-indigo-300 uppercase">{categoryLabel(mainExpenseCategory.name, t)}</Text>{" "}
                 {viewMode === "month"
-                  ? `trong tháng ${selectedMonth.toLocaleDateString("vi-VN", { month: "long", year: "numeric" })}`
-                  : `trong năm ${selectedYear}`}
-                , chiếm tổng số{" "}
+                  ? language === "vi"
+                    ? `trong tháng ${selectedMonth.toLocaleDateString("vi-VN", { month: "long", year: "numeric" })}`
+                    : `in ${selectedMonth.toLocaleDateString("en-US", { month: "long", year: "numeric" })}`
+                  : language === "vi"
+                    ? `trong năm ${selectedYear}`
+                    : `in ${selectedYear}`}
+                , {t("yearlyInsightMiddle")}{" "}
                 <Text className="font-black text-white">{formatMoneyVnd(mainExpenseCategory.amount)}</Text>{" "}
-                ({mainExpenseCategory.percentage}% tổng chi tiêu).{" "}
+                ({mainExpenseCategory.percentage}% {t("spent")}).{" "}
                 {viewMode === "year"
-                  ? `Trung bình mỗi tháng bạn chi ${formatMoneyVnd(Math.round(mainExpenseCategory.amount / 12))} cho danh mục này. `
+                  ? `${t("yearlyInsightAverage")} ${formatMoneyVnd(Math.round(mainExpenseCategory.amount / 12))}. `
                   : ""}
-                Hãy thử đặt ra hạn mức nhỏ hơn cho danh mục này để tối ưu hóa khoản tiết kiệm của bạn nhé! 💡
+                {t("yearlyInsightSuffix")}
               </Text>
             ) : (
               <Text className="text-xs text-slate-300 mt-1.5 leading-relaxed">
-                Chào mừng bạn đến với SpendSnap! Tôi là Trợ lý tài chính AI của bạn. Sau khi bạn ghi lại các giao dịch chi tiêu đầu tiên, tôi sẽ phân tích xu hướng chi tiêu để đề xuất lời khuyên tiết kiệm tại đây. 🌟
+                {t("welcomeInsight")}
               </Text>
             )}
           </View>

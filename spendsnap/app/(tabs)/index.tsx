@@ -8,7 +8,7 @@ import { useAddIntentStore } from "../../stores/addIntent";
 import { ensureDbReady, getSetting, setSetting } from "../../services/db";
 import { isSameLocalDay } from "../../utils/dates";
 import { formatMoneyVnd } from "../../utils/money";
-import { useI18n } from "../../utils/i18n";
+import { useI18n, type I18nKey } from "../../utils/i18n";
 
 const BUDGET_KEY = "monthly_budget_vnd";
 const PET_LEVEL_KEY = "pet_level";
@@ -16,14 +16,14 @@ const PET_LAST_DATE_KEY = "pet_last_date";
 const DEFAULT_BUDGET = 5_000_000;
 
 // ─── Pet Evolution System ────────────────────────────────────────────────────
-function getPetEvolution(level: number) {
-  if (level <= 0)  return { emoji: "🥚", name: "Trứng",             desc: "Chưa được ấp", nextAt: 1,    stageIdx: 0 };
-  if (level <= 2)  return { emoji: "🐣", name: "Nở trứng",          desc: `Lv.${level}`,   nextAt: 3,    stageIdx: 1 };
-  if (level <= 5)  return { emoji: "🐤", name: "Chim non",           desc: `Lv.${level}`,   nextAt: 6,    stageIdx: 2 };
-  if (level <= 10) return { emoji: "🐱", name: "Mèo con",            desc: `Lv.${level}`,   nextAt: 11,   stageIdx: 3 };
-  if (level <= 18) return { emoji: "🦊", name: "Cáo thần",           desc: `Lv.${level}`,   nextAt: 19,   stageIdx: 4 };
-  if (level <= 28) return { emoji: "🐲", name: "Rồng con",           desc: `Lv.${level}`,   nextAt: 29,   stageIdx: 5 };
-  return           { emoji: "🐉", name: "Rồng huyền thoại", desc: `Lv.${level} ✨`, nextAt: null, stageIdx: 6 };
+function getPetEvolution(level: number, t: (key: I18nKey) => string) {
+  if (level <= 0)  return { emoji: "🥚", name: t("petEgg"),     desc: t("petEggDesc"), nextAt: 1,    stageIdx: 0 };
+  if (level <= 2)  return { emoji: "🐣", name: t("petHatched"), desc: `Lv.${level}`,   nextAt: 3,    stageIdx: 1 };
+  if (level <= 5)  return { emoji: "🐤", name: t("petBird"),    desc: `Lv.${level}`,   nextAt: 6,    stageIdx: 2 };
+  if (level <= 10) return { emoji: "🐱", name: t("petCat"),     desc: `Lv.${level}`,   nextAt: 11,   stageIdx: 3 };
+  if (level <= 18) return { emoji: "🦊", name: t("petFox"),     desc: `Lv.${level}`,   nextAt: 19,   stageIdx: 4 };
+  if (level <= 28) return { emoji: "🐲", name: t("petDragon"),  desc: `Lv.${level}`,   nextAt: 29,   stageIdx: 5 };
+  return           { emoji: "🐉", name: t("petLegend"),  desc: `Lv.${level} ✨`, nextAt: null, stageIdx: 6 };
 }
 
 // Stage count for progress bar
@@ -141,20 +141,20 @@ export default function HomeScreen() {
 
   const monthlyStatus = useMemo(() => {
     if (!monthlyBudget || monthlyBudget <= 0) {
-      return { label: "Healthy", key: "healthy" as const, color: "#10b981", badge: "bg-emerald-500", textColor: "text-emerald-400", desc: "Chi tiêu trong kiểm soát 🌟" };
+      return { label: t("healthy"), key: "healthy" as const, color: "#10b981", badge: "bg-emerald-500", textColor: "text-emerald-400", desc: t("controlledSpending") };
     }
     const allowedToToday = now.getDate() * dailyLimit;
     if (monthlyTotal > monthlyBudget) {
-      return { label: "Over Budget", key: "overbudget" as const, color: "#ef4444", badge: "bg-rose-500", textColor: "text-rose-400", desc: "Đã vượt ngân sách tháng! 😱" };
+      return { label: t("overBudgetStatus"), key: "overbudget" as const, color: "#ef4444", badge: "bg-rose-500", textColor: "text-rose-400", desc: t("overspentMonth") };
     }
     if (monthlyTotal > allowedToToday * 1.2) {
-      return { label: "Critical", key: "critical" as const, color: "#f97316", badge: "bg-orange-500", textColor: "text-orange-400", desc: "Chi tiêu quá mức cho phép 😰" };
+      return { label: t("critical"), key: "critical" as const, color: "#f97316", badge: "bg-orange-500", textColor: "text-orange-400", desc: t("tooHighSpending") };
     }
     if (monthlyTotal > allowedToToday) {
-      return { label: "Warning", key: "warning" as const, color: "#f59e0b", badge: "bg-amber-500", textColor: "text-amber-400", desc: "Hơi vượt kế hoạch 😅" };
+      return { label: t("warning"), key: "warning" as const, color: "#f59e0b", badge: "bg-amber-500", textColor: "text-amber-400", desc: t("slightlyOverPlan") };
     }
-    return { label: "Healthy", key: "healthy" as const, color: "#10b981", badge: "bg-emerald-500", textColor: "text-emerald-400", desc: "Chi tiêu trong kiểm soát 🌟" };
-  }, [monthlyTotal, monthlyBudget, dailyLimit, now]);
+    return { label: t("healthy"), key: "healthy" as const, color: "#10b981", badge: "bg-emerald-500", textColor: "text-emerald-400", desc: t("controlledSpending") };
+  }, [monthlyTotal, monthlyBudget, dailyLimit, now, t]);
 
   const limitProgressPercent = useMemo(() => {
     if (dailyLimit <= 0) return 0;
@@ -165,12 +165,12 @@ export default function HomeScreen() {
 
   const greeting = useMemo(() => {
     const hours = now.getHours();
-    if (hours < 12) return "Good morning ☀️";
-    if (hours < 18) return "Good afternoon 🌤️";
-    return "Good evening 🌙";
-  }, [now]);
+    if (hours < 12) return `${t("goodMorning")} ☀️`;
+    if (hours < 18) return `${t("goodAfternoon")} 🌤️`;
+    return `${t("goodEvening")} 🌙`;
+  }, [now, t]);
 
-  const pet = useMemo(() => getPetEvolution(petLevel), [petLevel]);
+  const pet = useMemo(() => getPetEvolution(petLevel, t), [petLevel, t]);
 
   // Pet level progress within current stage
   const petStageProgress = useMemo(() => {
@@ -299,12 +299,12 @@ export default function HomeScreen() {
 
         <View className="flex-row justify-between items-start">
           <View className="flex-1 pr-3">
-            <Text className="text-indigo-200 text-[10px] font-extrabold tracking-widest uppercase">Today's Total Spent</Text>
+            <Text className="text-indigo-200 text-[10px] font-extrabold tracking-widest uppercase">{t("todayTotalSpent")}</Text>
             <Text className="text-[13px] font-black text-white mt-1 tracking-tight">
-              Ngân sách ngày: <Text className="text-2xl">{formatMoneyVnd(dailyLimit)}</Text>
+              {t("dailyBudget")}: <Text className="text-2xl">{formatMoneyVnd(dailyLimit)}</Text>
             </Text>
             <Text className="text-[12px] font-semibold text-indigo-100 mt-1">
-              Đã chi hôm nay: {formatMoneyVnd(todayTotal)}
+              {t("spentToday")}: {formatMoneyVnd(todayTotal)}
             </Text>
           </View>
         </View>
@@ -312,7 +312,7 @@ export default function HomeScreen() {
         {/* Daily limit progress */}
         <View className="mt-5">
           <View className="flex-row justify-between items-center mb-1.5">
-            <Text className="text-indigo-200 text-[9px] font-bold uppercase tracking-wider">Mức tiêu thụ ngày</Text>
+            <Text className="text-indigo-200 text-[9px] font-bold uppercase tracking-wider">{t("dailyUsage")}</Text>
             <Text className="text-[9px] font-black text-white">
               {limitProgressPercent}%
             </Text>
@@ -329,7 +329,7 @@ export default function HomeScreen() {
 
         <View className="flex-row items-center justify-between">
           <View>
-            <Text className="text-indigo-200 text-[9px] uppercase font-extrabold tracking-wider">Tháng này</Text>
+            <Text className="text-indigo-200 text-[9px] uppercase font-extrabold tracking-wider">{t("thisMonth")}</Text>
             <Text className="text-base font-black text-white mt-0.5">
               {formatMoneyVnd(monthlyTotal)} / {formatMoneyVnd(monthlyBudget)} ({monthlySpentPercent}%)
             </Text>
@@ -342,7 +342,7 @@ export default function HomeScreen() {
           <Text className="font-black text-rose-600">{t("overBudgetMessage")}</Text>
         ) : (
           <>
-            Để không bị over budget, trung bình mỗi ngày còn lại trong tháng bạn chỉ nên chi tiêu dưới{" "}
+            {t("budgetAdvice")}{" "}
             <Text className="font-black text-indigo-600">{formatMoneyVnd(recommendedDailyLimit)}</Text>.
           </>
         )}
@@ -418,12 +418,12 @@ export default function HomeScreen() {
                 </View>
                 {pet.nextAt !== null && (
                   <Text className="text-[8px] text-slate-500 font-semibold mt-0.5">
-                    Tiến hóa tiếp theo tại Lv.{pet.nextAt} • +1/ngày Healthy
+                    {t("nextEvolution")} Lv.{pet.nextAt} • {t("healthyDaily")}
                   </Text>
                 )}
                 {pet.nextAt === null && (
                   <Text className="text-[8px] text-slate-500 font-semibold mt-0.5">
-                    Đã đạt cấp bậc tối đa! ✨
+                    {t("maxPetLevel")} ✨
                   </Text>
                 )}
               </View>
@@ -574,9 +574,9 @@ export default function HomeScreen() {
             <View className="w-16 h-16 rounded-full bg-slate-50 items-center justify-center mb-3">
               <Ionicons name="receipt-outline" size={28} color="#94a3b8" />
             </View>
-            <Text className="text-sm font-black text-slate-800">No recent transactions</Text>
+            <Text className="text-sm font-black text-slate-800">{t("noRecentTransactions")}</Text>
             <Text className="text-xs text-slate-400 text-center mt-1">
-              Thêm giao dịch mới bằng Voice, Scan bill hoặc Quick Type để thấy ở đây.
+              {t("noRecentTransactionsHint")}
             </Text>
           </View>
         }

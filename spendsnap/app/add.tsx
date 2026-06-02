@@ -426,7 +426,7 @@ export default function AddModal() {
             <Ionicons name="arrow-back" size={18} color="#64748b" />
           </Pressable>
           <Text className="text-sm font-black text-slate-700">
-            {activeIntent?.mode === "voice" ? "AI Voice" : activeIntent?.mode === "camera" ? "Scan Receipt" : "Quick Type"}
+            {activeIntent?.mode === "voice" ? t("aiVoice") : activeIntent?.mode === "camera" ? t("scanBill") : t("quickType")}
           </Text>
           <View style={{ width: 36 }} />
         </View>
