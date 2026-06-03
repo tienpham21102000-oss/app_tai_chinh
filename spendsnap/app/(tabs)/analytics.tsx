@@ -286,11 +286,7 @@ export default function AnalyticsScreen() {
   const yearlyChartData = useMemo(() => {
     const ac = activeCats;
     const mcd = ac.map((cat) => MONTH_LABELS.map((_, m) => { const k = `${selectedYear}-${String(m + 1).padStart(2, "0")}`; const b = monthlyCategoryBreakdown[k] || {}; return b[cat] || 0; }));
-    const monthTotals = MONTH_LABELS.map((_, m) => ac.reduce((sum, cat, ci) => sum + (mcd[ci]?.[m] || 0), 0));
-    const monthsWithSpending = monthTotals.map((total, idx) => total > 0 ? idx : -1).filter((idx) => idx >= 0);
-    const firstMonth = monthsWithSpending[0] ?? 0;
-    const lastMonth = monthsWithSpending[monthsWithSpending.length - 1] ?? 11;
-    const chartMonths = Array.from({ length: lastMonth - firstMonth + 1 }, (_, idx) => firstMonth + idx);
+    const chartMonths = MONTH_LABELS.map((_, idx) => idx);
     const maxV = Math.max(1, ...mcd.flat());
     const getY = (val: number, h: number) => h - (val / maxV) * (h - 8);
     return { activeCats: ac, monthCatData: mcd, maxCatValue: maxV, getY, chartMonths };
@@ -336,7 +332,7 @@ export default function AnalyticsScreen() {
           <Pressable onPress={() => setSelectedYear((y) => y - 1)} className="p-2 rounded-lg active:bg-slate-100">
             <Ionicons name="chevron-back" size={24} color="#334155" />
           </Pressable>
-          <Text className="text-lg font-black text-slate-900">{language === "vi" ? `Năm ${selectedYear}` : selectedYear}</Text>
+          <Text className="text-lg font-black text-slate-900">{selectedYear}</Text>
           <Pressable onPress={() => setSelectedYear((y) => y + 1)} className="p-2 rounded-lg active:bg-slate-100">
             <Ionicons name="chevron-forward" size={24} color="#334155" />
           </Pressable>
@@ -395,21 +391,43 @@ export default function AnalyticsScreen() {
                       <View key={di} style={{ flex: 1, padding: 2, borderRightWidth: di < 6 ? 0.5 : 0, borderRightColor: "#e2e8f0", backgroundColor: day.isCurrentMonth ? "white" : "#f8fafc" }}>
                         {di === 0 && <Text style={{ fontSize: 6, fontWeight: "bold", color: "#6366f1", marginBottom: 1 }}>T{wi + 1}</Text>}
                         <Text style={{ fontSize: 9, fontWeight: "bold", textAlign: "center", marginBottom: 2, color: day.isCurrentMonth ? (hasSpending ? "#1e293b" : "#94a3b8") : "#cbd5e1" }}>{day.date.getDate()}</Text>
-                        <View style={{ height: 50, justifyContent: "flex-end", alignItems: "center" }}>
+                        <View style={{ height: 58, justifyContent: "center" }}>
                           {hasSpending && (
-                            <View style={{ flexDirection: "row", alignItems: "flex-end", justifyContent: "center", gap: 1, maxWidth: "100%", overflow: "hidden" }}>
+                            <View style={{ width: "100%", gap: 2 }}>
                               {visCats.map((cat) => {
                                 const amt = b[cat] || 0;
-                                const h = Math.max((amt / Math.max(maxCategoryAmount, 1)) * 42, 4);
-                                const barWidth = Math.max(3, Math.min(9, Math.floor(38 / Math.max(visCats.length, 1))));
+                                const w = Math.max((amt / Math.max(maxCategoryAmount, 1)) * 100, 42);
                                 return (
-                                  <View key={cat} style={{ alignItems: "center" }}>
-                                    <View style={{ height: h, width: barWidth, borderRadius: 1.5, backgroundColor: CATEGORY_HEX_COLORS[cat], justifyContent: "center", alignItems: "center" }}>
-                                      <Text style={{ fontSize: 5, fontWeight: "bold", color: "white", textAlign: "center", lineHeight: 6 }}>
-                                        {barWidth >= 8 ? (amt >= 1000000 ? `${(amt / 1000000).toFixed(1)}tr` : amt >= 1000 ? `${Math.round(amt / 1000)}k` : `${amt}`) : ""}
+                                  <Pressable
+                                    key={cat}
+                                    style={{
+                                      width: "100%",
+                                      height: 8,
+                                      borderRadius: 4,
+                                      backgroundColor: "#f1f5f9",
+                                      overflow: "hidden",
+                                    }}
+                                  >
+                                    <View
+                                      style={{
+                                        width: `${w}%`,
+                                        height: "100%",
+                                        borderRadius: 4,
+                                        backgroundColor: CATEGORY_HEX_COLORS[cat],
+                                        justifyContent: "center",
+                                        paddingHorizontal: 2,
+                                      }}
+                                    >
+                                      <Text
+                                        numberOfLines={1}
+                                        adjustsFontSizeToFit
+                                        minimumFontScale={0.55}
+                                        style={{ fontSize: 6, lineHeight: 7, fontWeight: "900", color: "white" }}
+                                      >
+                                        {formatMoneyVnd(amt)}
                                       </Text>
                                     </View>
-                                  </View>
+                                  </Pressable>
                                 );
                               })}
                             </View>
@@ -701,7 +719,7 @@ export default function AnalyticsScreen() {
         </View>
       </View>
 
-      {viewMode === "month" && (
+      {false && viewMode === "month" && (
         <>
           <Text className="text-base font-black text-slate-800 mb-4 tracking-tight">{t("weekSpending")}</Text>
           <View className="bg-white border border-slate-100 rounded-3xl p-4 shadow-md mb-12">
@@ -730,7 +748,7 @@ export default function AnalyticsScreen() {
                               {visCats.map((cat) => {
                                 const amt = b[cat] || 0;
                                 const h = Math.max((amt / Math.max(maxCategoryAmount, 1)) * 42, 4);
-                                const barWidth = Math.max(3, Math.min(9, Math.floor(38 / Math.max(visCats.length, 1))));
+                                const barWidth = 6;
                                 return <View key={cat} style={{ height: h, width: barWidth, borderRadius: 1.5, backgroundColor: CATEGORY_HEX_COLORS[cat] }} />;
                               })}
                             </View>
@@ -808,6 +826,45 @@ export default function AnalyticsScreen() {
                 )}
               </View>
             )}
+            <View className="mt-4 pt-3 border-t border-slate-100">
+              <Text className="text-[9px] font-bold text-slate-400 uppercase mb-2">{t("legendToggle")}</Text>
+              <View className="flex-row flex-wrap gap-x-3 gap-y-2">
+                {CATEGORY_ORDER.map((cat) => {
+                  const active = visibleCategories[cat];
+                  return (
+                    <Pressable
+                      key={cat}
+                      onPress={() => toggleCategory(cat)}
+                      className="flex-row items-center gap-1.5 px-2 py-1 rounded-full active:opacity-60"
+                      style={{
+                        backgroundColor: active ? CATEGORY_HEX_COLORS[cat] + "18" : "#f1f5f9",
+                        borderWidth: 1,
+                        borderColor: active ? CATEGORY_HEX_COLORS[cat] + "60" : "#e2e8f0",
+                      }}
+                    >
+                      <View
+                        style={{
+                          width: 10,
+                          height: 10,
+                          borderRadius: 2,
+                          backgroundColor: active ? CATEGORY_HEX_COLORS[cat] : "#cbd5e1",
+                        }}
+                      />
+                      <Text
+                        style={{
+                          fontSize: 9,
+                          fontWeight: "700",
+                          color: active ? CATEGORY_HEX_COLORS[cat] : "#94a3b8",
+                          textDecorationLine: active ? "none" : "line-through",
+                        }}
+                      >
+                        {categoryLabel(cat, t)}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
           </View>
         </>
       )}

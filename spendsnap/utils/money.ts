@@ -14,10 +14,11 @@ export function parseMoneyToVnd(input: string): number {
 
 export function formatMoneyVnd(amount: number) {
   try {
-    if (amount === 0) return "0 k";
+    if (amount === 0) return "0k";
     const kValue = Math.round(amount / 1000);
-    return `${kValue} k`;
+    const grouped = String(kValue).replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+    return `${grouped}k`;
   } catch {
-    return `${amount} k`;
+    return `${amount}k`;
   }
 }

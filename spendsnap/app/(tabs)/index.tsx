@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Animated, FlatList, KeyboardAvoidingView, Platform, Pressable, Text, TextInput, View } from "react-native";
+import { Animated, FlatList, KeyboardAvoidingView, Modal, Platform, Pressable, Text, TextInput, View } from "react-native";
 import { router, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 
@@ -21,8 +21,8 @@ function getPetEvolution(level: number, t: (key: I18nKey) => string) {
   if (level <= 5)  return { emoji: "🐤", name: t("petBird"),    desc: `Lv.${level}`,   nextAt: 6,    stageIdx: 2 };
   if (level <= 10) return { emoji: "🐱", name: t("petCat"),     desc: `Lv.${level}`,   nextAt: 11,   stageIdx: 3 };
   if (level <= 18) return { emoji: "🦊", name: t("petFox"),     desc: `Lv.${level}`,   nextAt: 19,   stageIdx: 4 };
-  if (level <= 28) return { emoji: "🐲", name: t("petDragon"),  desc: `Lv.${level}`,   nextAt: 29,   stageIdx: 5 };
-  return           { emoji: "🐉", name: t("petLegend"),  desc: `Lv.${level} ✨`, nextAt: null, stageIdx: 6 };
+  if (level <= 28) return { emoji: "🦄", name: t("petDragon"),  desc: `Lv.${level}`,   nextAt: 29,   stageIdx: 5 };
+  return           { emoji: "🦖", name: t("petLegend"),  desc: `Lv.${level} ✨`, nextAt: null, stageIdx: 6 };
 }
 
 // Stage count for progress bar
@@ -62,6 +62,7 @@ export default function HomeScreen() {
   const [petLastDate, setPetLastDate] = useState("");
   const [petLoaded, setPetLoaded] = useState(false);
   const [txLoaded, setTxLoaded] = useState(false);
+  const [petGuideOpen, setPetGuideOpen] = useState(false);
   const showQuickType = false;
   const quickTypeText = "";
   const setQuickTypeText = (_value: string) => {};
@@ -170,6 +171,15 @@ export default function HomeScreen() {
   }, [now, t]);
 
   const pet = useMemo(() => getPetEvolution(petLevel, t), [petLevel, t]);
+  const petStages = useMemo(() => [
+    { emoji: "🥚", name: t("petEgg"), range: "Lv.0", color: "#fef3c7", border: "#fde68a", min: 0 },
+    { emoji: "🐣", name: t("petHatched"), range: "Lv.1-2", color: "#fff7ed", border: "#fed7aa", min: 1 },
+    { emoji: "🐤", name: t("petBird"), range: "Lv.3-5", color: "#fefce8", border: "#fde047", min: 3 },
+    { emoji: "🐱", name: t("petCat"), range: "Lv.6-10", color: "#fdf2f8", border: "#fbcfe8", min: 6 },
+    { emoji: "🦊", name: t("petFox"), range: "Lv.11-18", color: "#fff1f2", border: "#fecdd3", min: 11 },
+    { emoji: "🦄", name: t("petDragon"), range: "Lv.19-28", color: "#ecfeff", border: "#a5f3fc", min: 19 },
+    { emoji: "🦖", name: t("petLegend"), range: "Lv.29+", color: "#eef2ff", border: "#c7d2fe", min: 29 },
+  ], [t]);
 
   // Pet level progress within current stage
   const petStageProgress = useMemo(() => {
@@ -364,28 +374,33 @@ export default function HomeScreen() {
           {/* Left: Pet display */}
           <View className="flex-row items-center gap-3 flex-1">
             {/* Animated pet */}
-            <Animated.View
-              style={{
-                transform: [
-                  { translateY: petAnimY },
-                  { translateX: petAnimX },
-                  { scale: petScale },
-                ],
-              }}
+            <Pressable
+              onPress={() => setPetGuideOpen(true)}
+              className="active:scale-95"
             >
-              <View
-                className="w-16 h-16 rounded-2xl items-center justify-center shadow-sm"
+              <Animated.View
                 style={{
-                  backgroundColor:
-                    monthlyStatus.key === "healthy"  ? "#dcfce7" :
-                    monthlyStatus.key === "warning"  ? "#fef3c7" :
-                    monthlyStatus.key === "critical" ? "#ffedd5" :
-                                                       "#fee2e2",
+                  transform: [
+                    { translateY: petAnimY },
+                    { translateX: petAnimX },
+                    { scale: petScale },
+                  ],
                 }}
               >
-                <Text style={{ fontSize: 34 }}>{pet.emoji}</Text>
-              </View>
-            </Animated.View>
+                <View
+                  className="w-16 h-16 rounded-2xl items-center justify-center shadow-sm"
+                  style={{
+                    backgroundColor:
+                      monthlyStatus.key === "healthy"  ? "#dcfce7" :
+                      monthlyStatus.key === "warning"  ? "#fef3c7" :
+                      monthlyStatus.key === "critical" ? "#ffedd5" :
+                                                         "#fee2e2",
+                  }}
+                >
+                  <Text style={{ fontSize: 34 }}>{pet.emoji}</Text>
+                </View>
+              </Animated.View>
+            </Pressable>
 
             {/* Pet info */}
             <View className="flex-1">
@@ -442,6 +457,103 @@ export default function HomeScreen() {
           </View>
         </View>
       </View>
+
+      <Modal
+        visible={petGuideOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setPetGuideOpen(false)}
+      >
+        <View className="flex-1 bg-black/40 items-center justify-center px-5">
+          <View className="w-full max-w-[420px] bg-white rounded-3xl p-5 border border-slate-100 shadow-xl">
+            <View className="flex-row items-center justify-between mb-3">
+              <Text className="text-base font-black text-slate-900">{t("petGuideTitle")}</Text>
+              <Pressable onPress={() => setPetGuideOpen(false)} className="w-8 h-8 rounded-full bg-slate-100 items-center justify-center">
+                <Ionicons name="close" size={16} color="#64748b" />
+              </Pressable>
+            </View>
+            <Text className="text-xs font-semibold text-slate-500 leading-relaxed mb-4">
+              {t("petGuideIntro")}
+            </Text>
+            <Text className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-2">{t("petGuideStages")}</Text>
+            <View className="mb-4">
+              {petStages.map((stage, idx) => {
+                const reached = petLevel >= stage.min;
+                return (
+                  <View key={stage.name} className="flex-row items-center mb-2">
+                    <View className="items-center mr-3">
+                      <View
+                        className="w-11 h-11 rounded-full items-center justify-center border"
+                        style={{
+                          backgroundColor: stage.color,
+                          borderColor: reached ? monthlyStatus.color : stage.border,
+                          borderWidth: reached ? 2 : 1,
+                        }}
+                      >
+                        <Text className="text-2xl">{stage.emoji}</Text>
+                      </View>
+                      {idx < petStages.length - 1 ? (
+                        <View
+                          style={{
+                            width: 2,
+                            height: 18,
+                            backgroundColor: reached ? monthlyStatus.color : "#e2e8f0",
+                            marginTop: 3,
+                          }}
+                        />
+                      ) : null}
+                    </View>
+                    <View
+                      className="flex-1 rounded-2xl px-3 py-2 border"
+                      style={{
+                        backgroundColor: reached ? stage.color : "#f8fafc",
+                        borderColor: reached ? monthlyStatus.color + "55" : "#e2e8f0",
+                      }}
+                    >
+                      <View className="flex-row items-center justify-between">
+                        <Text className="text-xs font-black text-slate-800">{stage.name}</Text>
+                        <Text className="text-[10px] font-black text-indigo-600">{stage.range}</Text>
+                      </View>
+                      <Text className="text-[9px] font-bold mt-0.5" style={{ color: reached ? monthlyStatus.color : "#94a3b8" }}>
+                        {reached ? t("petReached") : t("petLocked")}
+                      </Text>
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
+            <View className="hidden">
+              {petStages.map((stage) => (
+                <View
+                  key={stage.name}
+                  className="items-center rounded-2xl px-3 py-3 border"
+                  style={{
+                    width: "31%",
+                    backgroundColor: stage.color,
+                    borderColor: petLevel >= stage.min ? monthlyStatus.color : stage.border,
+                    borderWidth: petLevel >= stage.min ? 2 : 1,
+                  }}
+                >
+                  <View className="w-10 h-10 rounded-full bg-white/70 items-center justify-center mb-1.5">
+                    <Text className="text-2xl">{stage.emoji}</Text>
+                  </View>
+                  <Text className="text-[10px] font-black text-slate-800 text-center" numberOfLines={1}>{stage.name}</Text>
+                  <Text className="text-[9px] font-black text-indigo-600 mt-0.5">{stage.range}</Text>
+                  {petLevel >= stage.min ? (
+                    <View className="mt-1 px-1.5 py-0.5 rounded-full bg-white/70">
+                      <Text className="text-[8px] font-black" style={{ color: monthlyStatus.color }}>✓</Text>
+                    </View>
+                  ) : null}
+                </View>
+              ))}
+            </View>
+            <Text className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">{t("petGuideHow")}</Text>
+            <Text className="text-xs font-semibold text-slate-600 leading-relaxed">
+              {t("petGuideHowText")}
+            </Text>
+          </View>
+        </View>
+      </Modal>
 
       {/* Quick Action Shortcuts */}
       <View className="flex-row gap-3 mb-4">
