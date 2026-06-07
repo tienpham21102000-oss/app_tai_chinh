@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+﻿import { useCallback, useMemo, useState } from "react";
 import { Alert, FlatList, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { router, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -8,7 +8,7 @@ import * as Sharing from "expo-sharing";
 import { useTransactionsStore } from "../../stores/transactions";
 import { useI18n } from "../../utils/i18n";
 import { formatMoneyVnd } from "../../utils/money";
-import { categoryBgColor, categoryEmoji, categoryLabel } from "../../utils/categories";
+import { CANONICAL_CATEGORIES, categoryBgColor, categoryEmoji, categoryLabel, normalizeCategoryName } from "../../utils/categories";
 
 function toSafeString(value: unknown): string {
   if (value == null) return "";
@@ -18,25 +18,25 @@ function toSafeString(value: unknown): string {
 function getCategoryEmoji(category?: string | null): string {
   try {
     const c = toSafeString(category).toLowerCase();
-    if (c.includes("phở") || c.includes("ăn") || c.includes("food") || c.includes("lunch") || c.includes("dinner")) return "🍔";
-    if (c.includes("cf") || c.includes("coffee") || c.includes("cà phê") || c.includes("highlands") || c.includes("starbucks") || c.includes("trà sữa")) return "☕";
-    if (c.includes("grab") || c.includes("taxi") || c.includes("xe") || c.includes("di chuyển") || c.includes("transport")) return "🚗";
-    if (c.includes("mua") || c.includes("shop") || c.includes("lazada") || c.includes("shopee") || c.includes("quần áo")) return "🛍️";
-    if (c.includes("phim") || c.includes("chơi") || c.includes("nhạc") || c.includes("entertainment") || c.includes("game")) return "🎬";
-    if (c.includes("điện") || c.includes("nước") || c.includes("bill") || c.includes("internet")) return "⚡";
+    if (c.includes("phá»Ÿ") || c.includes("Äƒn") || c.includes("food") || c.includes("lunch") || c.includes("dinner")) return "ðŸ”";
+    if (c.includes("cf") || c.includes("coffee") || c.includes("cÃ  phÃª") || c.includes("highlands") || c.includes("starbucks") || c.includes("trÃ  sá»¯a")) return "â˜•";
+    if (c.includes("grab") || c.includes("taxi") || c.includes("xe") || c.includes("di chuyá»ƒn") || c.includes("transport")) return "ðŸš—";
+    if (c.includes("mua") || c.includes("shop") || c.includes("lazada") || c.includes("shopee") || c.includes("quáº§n Ã¡o")) return "ðŸ›ï¸";
+    if (c.includes("phim") || c.includes("chÆ¡i") || c.includes("nháº¡c") || c.includes("entertainment") || c.includes("game")) return "ðŸŽ¬";
+    if (c.includes("Ä‘iá»‡n") || c.includes("nÆ°á»›c") || c.includes("bill") || c.includes("internet")) return "âš¡";
   } catch { /* ignore */ }
-  return "📦";
+  return "ðŸ“¦";
 }
 
 function getCategoryBg(category?: string | null): string {
   try {
     const c = toSafeString(category).toLowerCase();
-    if (c.includes("phở") || c.includes("ăn") || c.includes("food") || c.includes("lunch") || c.includes("dinner")) return "bg-orange-50";
-    if (c.includes("cf") || c.includes("coffee") || c.includes("cà phê") || c.includes("highlands") || c.includes("starbucks") || c.includes("trà sữa")) return "bg-amber-50";
-    if (c.includes("grab") || c.includes("taxi") || c.includes("xe") || c.includes("di chuyển") || c.includes("transport")) return "bg-sky-50";
-    if (c.includes("mua") || c.includes("shop") || c.includes("lazada") || c.includes("shopee") || c.includes("quần áo")) return "bg-purple-50";
-    if (c.includes("phim") || c.includes("chơi") || c.includes("nhạc") || c.includes("entertainment") || c.includes("game")) return "bg-rose-50";
-    if (c.includes("điện") || c.includes("nước") || c.includes("bill") || c.includes("internet")) return "bg-emerald-50";
+    if (c.includes("phá»Ÿ") || c.includes("Äƒn") || c.includes("food") || c.includes("lunch") || c.includes("dinner")) return "bg-orange-50";
+    if (c.includes("cf") || c.includes("coffee") || c.includes("cÃ  phÃª") || c.includes("highlands") || c.includes("starbucks") || c.includes("trÃ  sá»¯a")) return "bg-amber-50";
+    if (c.includes("grab") || c.includes("taxi") || c.includes("xe") || c.includes("di chuyá»ƒn") || c.includes("transport")) return "bg-sky-50";
+    if (c.includes("mua") || c.includes("shop") || c.includes("lazada") || c.includes("shopee") || c.includes("quáº§n Ã¡o")) return "bg-purple-50";
+    if (c.includes("phim") || c.includes("chÆ¡i") || c.includes("nháº¡c") || c.includes("entertainment") || c.includes("game")) return "bg-rose-50";
+    if (c.includes("Ä‘iá»‡n") || c.includes("nÆ°á»›c") || c.includes("bill") || c.includes("internet")) return "bg-emerald-50";
   } catch { /* ignore */ }
   return "bg-slate-100";
 }
@@ -53,14 +53,12 @@ function getCategoryBgColor(category?: string | null): string {
 }
 
 const CATEGORY_FILTERS = [
-  { id: "all",           label: "All",    emoji: "✨" },
-  { id: "food",          label: "Food",   emoji: "🍔" },
-  { id: "coffee",        label: "Drinks", emoji: "☕" },
-  { id: "transport",     label: "Travel", emoji: "🚗" },
-  { id: "shopping",      label: "Shop",   emoji: "🛍️" },
-  { id: "entertainment", label: "Fun",    emoji: "🎬" },
-  { id: "bills",         label: "Bills",  emoji: "⚡" },
-  { id: "other",         label: "Others", emoji: "📦" },
+  { id: "all", label: "All", emoji: "\u{2728}" },
+  ...CANONICAL_CATEGORIES.map((category) => ({
+    id: category,
+    label: category,
+    emoji: categoryEmoji(category),
+  })),
 ];
 
 type DateFilterId = "all" | "week" | "30d" | "custom";
@@ -198,7 +196,7 @@ function formatShortDate(ymd: string, locale: string): string {
 function formatHistoryDate(value: string): string {
   const date = new Date(value);
   if (isNaN(date.getTime())) return value;
-  return `Ngày ${date.toLocaleDateString("vi-VN")}`;
+  return date.toLocaleDateString("vi-VN");
 }
 function htmlEscape(value: unknown): string {
   return String(value ?? "")
@@ -209,19 +207,8 @@ function htmlEscape(value: unknown): string {
 }
 
 function matchesCategory(c: string, filterId: string): boolean {
-  try {
-    if (filterId === "food")          return c.includes("phở") || c.includes("ăn") || c.includes("food") || c.includes("lunch") || c.includes("dinner");
-    if (filterId === "coffee")        return c.includes("cf") || c.includes("coffee") || c.includes("cà phê") || c.includes("highlands") || c.includes("starbucks") || c.includes("trà sữa");
-    if (filterId === "transport")     return c.includes("grab") || c.includes("taxi") || c.includes("xe") || c.includes("di chuyển") || c.includes("transport");
-    if (filterId === "shopping")      return c.includes("mua") || c.includes("shop") || c.includes("lazada") || c.includes("shopee") || c.includes("quần áo");
-    if (filterId === "entertainment") return c.includes("phim") || c.includes("chơi") || c.includes("nhạc") || c.includes("entertainment") || c.includes("game");
-    if (filterId === "bills")         return c.includes("điện") || c.includes("nước") || c.includes("bill") || c.includes("internet");
-    if (filterId === "other") {
-      const known = ["phở","ăn","food","lunch","dinner","cf","coffee","cà phê","highlands","starbucks","trà sữa","grab","taxi","xe","di chuyển","transport","mua","shop","lazada","shopee","quần áo","phim","chơi","nhạc","entertainment","game","điện","nước","bill","internet"];
-      return !known.some((k) => c.includes(k));
-    }
-  } catch { /* ignore */ }
-  return true;
+  if (filterId === "all") return true;
+  return normalizeCategoryName(c) === filterId;
 }
 
 export default function HistoryScreen() {
@@ -443,13 +430,7 @@ export default function HistoryScreen() {
 
   const categoryLabelMap: Record<string, string> = {
     all: t("all"),
-    food: t("food"),
-    coffee: t("drinks"),
-    transport: t("travel"),
-    shopping: t("shop"),
-    entertainment: t("fun"),
-    bills: t("bills"),
-    other: t("categories"),
+    ...Object.fromEntries(CANONICAL_CATEGORIES.map((category) => [category, categoryLabel(category, language)])),
   };
   const dateLabelMap: Record<DateFilterId, string> = {
     all: t("dateAll"),

@@ -1,15 +1,15 @@
+import { Ionicons } from "@expo/vector-icons";
+import { router } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Switch, Text, TextInput, View } from "react-native";
-import { router } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
 
 import { DEFAULT_CATEGORIES, ensureDbReady, getSetting, setSetting } from "../services/db";
-import { scheduleDailyReminder, cancelDailyReminder } from "../services/reminders";
+import { cancelDailyReminder, scheduleDailyReminder } from "../services/reminders";
 import { syncTransactionsToSupabaseIfEnabled } from "../services/sync";
 import { useAuthStore } from "../stores/auth";
-import { useI18n } from "../utils/i18n";
 import { DEFAULT_BUDGET, LEGACY_BUDGET_KEY, getBudgetForMonth, monthBudgetKey } from "../utils/budget";
 import { categoryLabel } from "../utils/categories";
+import { useI18n } from "../utils/i18n";
 import { formatMoneyVnd, parseMoneyToVnd } from "../utils/money";
 
 const ONBOARDING_COMPLETE_PREFIX = "onboarding_complete_";
@@ -245,7 +245,7 @@ export default function Onboarding() {
 
   return (
     <KeyboardAvoidingView className="flex-1 bg-[#f8fafc]" behavior={Platform.OS === "ios" ? "padding" : "height"}>
-      <ScrollView className="flex-1 px-5 pt-14" contentContainerStyle={{ paddingBottom: 28 }} keyboardShouldPersistTaps="handled">
+      <ScrollView className="flex-1 px-5 pt-14" contentContainerStyle={{ flexGrow: 1, paddingBottom: 160 }} keyboardShouldPersistTaps="handled">
         <View className="mb-8">
           <View className="w-12 h-12 rounded-2xl bg-indigo-600 items-center justify-center mb-4">
             <Ionicons name="wallet-outline" size={24} color="white" />

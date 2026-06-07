@@ -5,7 +5,7 @@ import { router, useFocusEffect } from "expo-router";
 
 import { ensureDbReady, getSetting, setSetting } from "../../services/db";
 import { isSupabaseConfigured } from "../../services/supabase";
-import { syncTransactionsToSupabase, syncTransactionsToSupabaseIfEnabled } from "../../services/sync";
+import { getSupabaseSyncStatus, syncTransactionsToSupabase, syncTransactionsToSupabaseIfEnabled } from "../../services/sync";
 import { useAuthStore } from "../../stores/auth";
 import { useTransactionsStore } from "../../stores/transactions";
 import { usePreferencesStore } from "../../stores/preferences";
@@ -24,6 +24,8 @@ export default function SettingsScreen() {
   const user = useAuthStore((s) => s.user);
   const signOut = useAuthStore((s) => s.signOut);
   const [syncEnabled, setSyncEnabled] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<{ unsynced: number; pendingDeletes: number }>({ unsynced: 0, pendingDeletes: 0 });
   const [notifyEnabled, setNotifyEnabled] = useState(true);
   const [reminderTime, setReminderTime] = useState("20:00");
   const resetAll = useTransactionsStore((s) => s.resetAll);
@@ -39,11 +41,13 @@ export default function SettingsScreen() {
           await ensureDbReady();
           const n = await getBudgetForMonth(new Date());
           const sync = await getSetting(SYNC_ENABLED_KEY);
+          const status = await getSupabaseSyncStatus();
           const notify = await getSetting(DAILY_REMINDER_ENABLED_KEY);
           const time = await getSetting(DAILY_REMINDER_TIME_KEY);
           if (!active) return;
           setMonthlyBudget(n);
           setSyncEnabled(sync !== "0" && isSupabaseConfigured());
+          setSyncStatus({ unsynced: status.unsynced, pendingDeletes: status.pendingDeletes });
           setNotifyEnabled(notify !== "0");
           setReminderTime(time || "20:00");
         } catch {
@@ -70,13 +74,33 @@ export default function SettingsScreen() {
       await ensureDbReady();
       await setSetting(SYNC_ENABLED_KEY, next ? "1" : "0");
       if (next) {
+        setSyncing(true);
         const result = await syncTransactionsToSupabase();
-        Alert.alert("Synced", `Pushed: ${result.pushed}, Pulled: ${result.pulled}`);
+        const status = await getSupabaseSyncStatus();
+        setSyncStatus({ unsynced: status.unsynced, pendingDeletes: status.pendingDeletes });
+        Alert.alert(language === "vi" ? "Đã đồng bộ" : "Synced", `Pushed: ${result.pushed}, Pulled: ${result.pulled}`);
       }
     } catch (e) {
       setSyncEnabled(false);
       await setSetting(SYNC_ENABLED_KEY, "0").catch(() => {});
-      Alert.alert("Sync failed", e instanceof Error ? e.message : "Unknown error");
+      Alert.alert(language === "vi" ? "Đồng bộ thất bại" : "Sync failed", e instanceof Error ? e.message : "Unknown error");
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const handleManualSync = async () => {
+    if (!syncEnabled) return;
+    setSyncing(true);
+    try {
+      const result = await syncTransactionsToSupabase();
+      const status = await getSupabaseSyncStatus();
+      setSyncStatus({ unsynced: status.unsynced, pendingDeletes: status.pendingDeletes });
+      Alert.alert(language === "vi" ? "Đã đồng bộ" : "Synced", `Pushed: ${result.pushed}, Pulled: ${result.pulled}`);
+    } catch (e) {
+      Alert.alert(language === "vi" ? "Đồng bộ thất bại" : "Sync failed", e instanceof Error ? e.message : "Unknown error");
+    } finally {
+      setSyncing(false);
     }
   };
 
@@ -240,22 +264,38 @@ export default function SettingsScreen() {
           </View>
         </View>
         {/* Sync Settings */}
-        <View className="flex-row items-center justify-between px-5 py-4 border-b border-slate-50">
-          <View className="flex-row items-center gap-3.5">
-            <View className="w-9 h-9 rounded-xl bg-sky-50 items-center justify-center">
-              <Ionicons name="cloud-upload-outline" size={18} color="#0284c7" />
+        <View className="px-5 py-4 border-b border-slate-50">
+          <View className="flex-row items-center justify-between">
+            <View className="flex-row items-center gap-3.5 flex-1 pr-3">
+              <View className="w-9 h-9 rounded-xl bg-sky-50 items-center justify-center">
+                <Ionicons name="cloud-upload-outline" size={18} color="#0284c7" />
+              </View>
+              <View className="flex-1">
+                <Text className="text-sm font-bold text-slate-800">{t("sync")}</Text>
+                <Text className="text-[10px] text-slate-400 font-medium">{t("syncHint")}</Text>
+                <Text className="text-[10px] text-slate-500 font-bold mt-1">
+                  {language === "vi" ? "Chờ đồng bộ" : "Pending"}: {syncStatus.unsynced + syncStatus.pendingDeletes}
+                </Text>
+              </View>
             </View>
-            <View>
-              <Text className="text-sm font-bold text-slate-800">{t("sync")}</Text>
-              <Text className="text-[10px] text-slate-400 font-medium">{t("syncHint")}</Text>
-            </View>
+            <Switch
+              value={syncEnabled}
+              onValueChange={handleToggleSync}
+              trackColor={{ false: "#e2e8f0", true: "#818cf8" }}
+              thumbColor={syncEnabled ? "#6366f1" : "#f4f4f5"}
+            />
           </View>
-          <Switch
-            value={syncEnabled}
-            onValueChange={handleToggleSync}
-            trackColor={{ false: "#e2e8f0", true: "#818cf8" }}
-            thumbColor={syncEnabled ? "#6366f1" : "#f4f4f5"}
-          />
+          {syncEnabled ? (
+            <Pressable
+              onPress={() => void handleManualSync()}
+              disabled={syncing}
+              className="mt-3 rounded-2xl bg-sky-50 py-3 items-center active:opacity-70 disabled:opacity-40"
+            >
+              <Text className="text-xs font-black text-sky-700">
+                {syncing ? (language === "vi" ? "Đang đồng bộ..." : "Syncing...") : language === "vi" ? "Đồng bộ ngay" : "Sync now"}
+              </Text>
+            </Pressable>
+          ) : null}
         </View>
 
         {/* Notifications */}
@@ -325,7 +365,7 @@ export default function SettingsScreen() {
             <View>
               <Text className="text-sm font-bold text-slate-800">{t("monthlyBudgetGoal")}</Text>
               <Text className="text-[10px] text-slate-400 font-medium">
-                {language === "vi" ? "Dang dat" : "Set to"}: {formatMoneyVnd(monthlyBudget)}
+                {language === "vi" ? "Đang đặt" : "Set to"}: {formatMoneyVnd(monthlyBudget)}
               </Text>
             </View>
           </View>

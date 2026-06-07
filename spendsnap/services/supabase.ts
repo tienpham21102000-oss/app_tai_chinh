@@ -1,6 +1,6 @@
-import Constants from "expo-constants";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import Constants from "expo-constants";
 
 type SupabaseConfig = {
   url: string;
@@ -45,4 +45,3 @@ export function getSupabaseClient(): SupabaseClient {
   });
   return client;
 }
-

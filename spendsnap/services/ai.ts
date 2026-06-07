@@ -9,7 +9,7 @@ export type ExtractedTransaction = {
   confidence?: number;
 };
 
-const VALID_CATEGORIES = ["Food", "Drinks", "Travel", "Shopping", "Entertainment", "Bills", "Others"];
+const VALID_CATEGORIES = ["Food", "Transport", "Shopping", "Housing", "Health", "Education", "Entertainment", "Family", "Work", "Investment", "Others"];
 
 export async function extractTransactionFromText(text: string, language: "vi" | "en" = "vi"): Promise<ExtractedTransaction> {
   try {
@@ -27,12 +27,16 @@ export async function extractTransactionFromText(text: string, language: "vi" | 
 
 export function keywordClassify(merchant: string, note?: string | null): string {
   const text = `${merchant} ${note || ""}`.toLowerCase();
-  if (/(pho|bun|com|food|lunch|dinner|lotteria|kfc|pizza|restaurant)/i.test(text)) return "Food";
-  if (/(cf|coffee|cafe|highlands|starbucks|tra sua|phuc long|gong cha|drink)/i.test(text)) return "Drinks";
-  if (/(grab|taxi|transport|vinasun|mai linh|bus|train|flight|travel)/i.test(text)) return "Travel";
+  if (/(pho|bun|com|food|lunch|dinner|lotteria|kfc|pizza|restaurant|cf|coffee|cafe|highlands|starbucks|tra sua|phuc long|gong cha|drink)/i.test(text)) return "Food";
+  if (/(grab|taxi|transport|vinasun|mai linh|bus|train|flight|travel)/i.test(text)) return "Transport";
   if (/(shop|lazada|shopee|tiki|aeon|mall|market|clothes|shopping)/i.test(text)) return "Shopping";
+  if (/(rent|house|housing|home|electric|water|internet|evn|vnpt|fpt|viettel|utility|bill)/i.test(text)) return "Housing";
+  if (/(health|doctor|hospital|medicine|pharmacy|clinic|drug)/i.test(text)) return "Health";
+  if (/(education|school|course|book|tuition|class|study)/i.test(text)) return "Education";
   if (/(movie|cinema|cgv|game|music|entertainment|fahasa)/i.test(text)) return "Entertainment";
-  if (/(bill|electric|water|internet|evn|vnpt|fpt|viettel|utility)/i.test(text)) return "Bills";
+  if (/(family|kids|baby|child|parent)/i.test(text)) return "Family";
+  if (/(work|office|business|cowork|meeting)/i.test(text)) return "Work";
+  if (/(invest|stock|crypto|fund|saving)/i.test(text)) return "Investment";
   return "Others";
 }
 

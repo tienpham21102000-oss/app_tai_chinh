@@ -25,17 +25,25 @@ const WEB_KEYS = {
 const MOCK_SEED_KEY = "mock_seed_version";
 const MOCK_SEED_VERSION = "fixed_2022_2026_v1";
 const CATEGORY_SEED_KEY = "default_categories_seeded";
+const CATEGORY_DEFAULT_VERSION_KEY = "default_categories_version";
+const CATEGORY_DEFAULT_VERSION = "expense_categories_v2";
 const SHOULD_SEED_DEMO = process.env.EXPO_PUBLIC_SEED_DEMO_DATA === "1";
 
 const DEFAULT_CATEGORY_BY_ID = {
   food: { name: "Food", icon: "\u{1f35c}", color: "#f97316" },
-  drinks: { name: "Drinks", icon: "\u{2615}", color: "#a855f7" },
-  transport: { name: "Travel", icon: "\u{1f6f5}", color: "#0ea5e9" },
-  shopping: { name: "Shopping", icon: "\u{1f6cd}\u{fe0f}", color: "#ec4899" },
-  entertainment: { name: "Entertainment", icon: "\u{1f3ac}", color: "#22c55e" },
-  bills: { name: "Bills", icon: "\u{1f9fe}", color: "#f59e0b" },
+  transport: { name: "Transport", icon: "\u{1f6f5}", color: "#0ea5e9" },
+  shopping: { name: "Shopping", icon: "\u{1f6cd}\u{fe0f}", color: "#a855f7" },
+  housing: { name: "Housing", icon: "\u{1f3e0}", color: "#10b981" },
+  health: { name: "Health", icon: "\u{1f48a}", color: "#f43f5e" },
+  education: { name: "Education", icon: "\u{1f4da}", color: "#3b82f6" },
+  entertainment: { name: "Entertainment", icon: "\u{1f3ac}", color: "#ec4899" },
+  family: { name: "Family", icon: "\u{1f46a}", color: "#f59e0b" },
+  work: { name: "Work", icon: "\u{1f4bc}", color: "#6366f1" },
+  investment: { name: "Investment", icon: "\u{1f4c8}", color: "#84cc16" },
   others: { name: "Others", icon: "\u{1f4cc}", color: "#64748b" },
 } satisfies Record<string, { name: string; icon: string; color: string }>;
+
+const LEGACY_DEFAULT_CATEGORY_IDS = new Set(["food", "drinks", "transport", "shopping", "entertainment", "bills", "others"]);
 
 export const DEFAULT_CATEGORIES: Array<{
   id: string;
@@ -50,6 +58,14 @@ export const DEFAULT_CATEGORIES: Array<{
   color: value.color,
   budget_monthly: 0,
 }));
+
+function isOnlyKnownDefaultCategories(rows: Array<{ id?: string | null }>) {
+  const nextIds = new Set(DEFAULT_CATEGORIES.map((category) => category.id));
+  return rows.length > 0 && rows.every((row) => {
+    const id = String(row.id ?? "");
+    return nextIds.has(id) || LEGACY_DEFAULT_CATEGORY_IDS.has(id);
+  });
+}
 
 function webReadJson<T>(key: string, fallback: T): T {
   try {
@@ -69,7 +85,8 @@ export async function ensureDbReady() {
   if (Platform.OS === "web") {
     const existing = webReadJson<DbCategoryRow[]>(WEB_KEYS.categories, []);
     const settings = webReadJson<Record<string, string>>(WEB_KEYS.settings, {});
-    if (existing.length === 0 && settings?.[CATEGORY_SEED_KEY] !== "1") {
+    const shouldUpgradeDefaults = settings?.[CATEGORY_DEFAULT_VERSION_KEY] !== CATEGORY_DEFAULT_VERSION && isOnlyKnownDefaultCategories(existing);
+    if ((existing.length === 0 && settings?.[CATEGORY_SEED_KEY] !== "1") || shouldUpgradeDefaults) {
       webWriteJson(
         WEB_KEYS.categories,
         DEFAULT_CATEGORIES.map((c) => ({
@@ -80,7 +97,7 @@ export async function ensureDbReady() {
           budget_monthly: c.budget_monthly,
         } satisfies DbCategoryRow))
       );
-      webWriteJson(WEB_KEYS.settings, { ...(settings ?? {}), [CATEGORY_SEED_KEY]: "1" });
+      webWriteJson(WEB_KEYS.settings, { ...(settings ?? {}), [CATEGORY_SEED_KEY]: "1", [CATEGORY_DEFAULT_VERSION_KEY]: CATEGORY_DEFAULT_VERSION });
     }
     // Ensure keys exist
     if (!settings || typeof settings !== "object") webWriteJson(WEB_KEYS.settings, {});
@@ -147,7 +164,13 @@ export async function ensureDbReady() {
   `);
 
   const categorySeeded = await getSetting(CATEGORY_SEED_KEY);
-  if (categorySeeded !== "1") {
+  const categoryDefaultVersion = await getSetting(CATEGORY_DEFAULT_VERSION_KEY);
+  const existingCategories = (await db.getAllAsync("SELECT id FROM categories")) as Array<{ id: string }>;
+  const shouldUpgradeDefaults = categoryDefaultVersion !== CATEGORY_DEFAULT_VERSION && isOnlyKnownDefaultCategories(existingCategories);
+  if (categorySeeded !== "1" || shouldUpgradeDefaults) {
+    if (shouldUpgradeDefaults) {
+      await db.execAsync("DELETE FROM categories;");
+    }
     for (const c of DEFAULT_CATEGORIES) {
       await db.runAsync(
         "INSERT OR IGNORE INTO categories (id, name, icon, color, budget_monthly) VALUES (?, ?, ?, ?, ?)",
@@ -159,6 +182,7 @@ export async function ensureDbReady() {
       );
     }
     await setSetting(CATEGORY_SEED_KEY, "1");
+    await setSetting(CATEGORY_DEFAULT_VERSION_KEY, CATEGORY_DEFAULT_VERSION);
   }
 
   const countRow = (await db.getFirstAsync("SELECT COUNT(*) AS count FROM transactions WHERE source = 'demo'")) as { count?: number } | null;
@@ -337,7 +361,7 @@ export async function deleteTransaction(id: string) {
       rows.filter((r) => r.id !== id)
     );
     const settings = webReadJson<Record<string, string>>(WEB_KEYS.settings, {});
-    webWriteJson(WEB_KEYS.settings, { ...(settings ?? {}), [CATEGORY_SEED_KEY]: "1" });
+    webWriteJson(WEB_KEYS.settings, { ...(settings ?? {}), [CATEGORY_SEED_KEY]: "1", [CATEGORY_DEFAULT_VERSION_KEY]: CATEGORY_DEFAULT_VERSION });
     return;
   }
   const db = await getDb();
@@ -473,6 +497,7 @@ export async function restoreDefaultCategories() {
     );
   }
   await setSetting(CATEGORY_SEED_KEY, "1");
+  await setSetting(CATEGORY_DEFAULT_VERSION_KEY, CATEGORY_DEFAULT_VERSION);
 }
 
 export async function getSetting(key: string): Promise<string | null> {
@@ -526,7 +551,7 @@ export async function resetLocalDatabase() {
         budget_monthly: c.budget_monthly,
       } satisfies DbCategoryRow))
     );
-    webWriteJson(WEB_KEYS.settings, { [CATEGORY_SEED_KEY]: "1" });
+    webWriteJson(WEB_KEYS.settings, { [CATEGORY_SEED_KEY]: "1", [CATEGORY_DEFAULT_VERSION_KEY]: CATEGORY_DEFAULT_VERSION });
     webWriteJson(WEB_KEYS.transactionDeletes, []);
     return;
   }
@@ -554,4 +579,5 @@ export async function resetLocalDatabase() {
     );
   }
   await setSetting(CATEGORY_SEED_KEY, "1");
+  await setSetting(CATEGORY_DEFAULT_VERSION_KEY, CATEGORY_DEFAULT_VERSION);
 }

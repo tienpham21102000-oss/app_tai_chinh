@@ -11,6 +11,7 @@ import {
 import * as ImagePicker from "expo-image-picker";
 import { Asset } from "expo-asset";
 import { Ionicons } from "@expo/vector-icons";
+import NetInfo from "@react-native-community/netinfo";
 
 import { extractTransactionFromText } from "../services/ai";
 import { ensureDbReady, listCategories, type DbCategoryRow } from "../services/db";
@@ -35,6 +36,7 @@ export default function AddModal() {
     merchant?: string | null;
     category?: string | null;
     date?: string | null;
+    dateSource?: "entry" | "receipt" | "scan";
     note?: string | null;
     receipt_id?: string | null;
   } | null>(null);
@@ -48,6 +50,8 @@ export default function AddModal() {
   const handledIntentRef = useRef(false);
   const [categories, setCategories] = useState<DbCategoryRow[]>([]);
   const [categoryOpen, setCategoryOpen] = useState(false);
+  const [isOnline, setIsOnline] = useState(true);
+  const [transactionDateInput, setTransactionDateInput] = useState("");
   const { t, language } = useI18n();
 
   const pendingIntent = useAddIntentStore((s) => s.intent);
@@ -59,9 +63,24 @@ export default function AddModal() {
     router.dismissTo("/");
   }
 
+  const offlineAiMessage =
+    language === "vi"
+      ? "Không có internet. AI Voice và AI Camera cần mạng; vui lòng dùng AI Note để nhập chi tiêu."
+      : "No internet connection. AI Voice and AI Camera require internet; please use AI Note to add expenses.";
+
   useEffect(() => {
     clearPendingIntent();
   }, [clearPendingIntent]);
+
+  useEffect(() => {
+    const unsubscribe = NetInfo.addEventListener((state) => {
+      setIsOnline(Boolean(state.isConnected && state.isInternetReachable !== false));
+    });
+    void NetInfo.fetch().then((state) => {
+      setIsOnline(Boolean(state.isConnected && state.isInternetReachable !== false));
+    });
+    return unsubscribe;
+  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -88,6 +107,7 @@ export default function AddModal() {
         merchant: activeIntent.editTransaction.merchant ?? null,
         category: activeIntent.editTransaction.category ?? null,
         date: activeIntent.editTransaction.date ?? null,
+        dateSource: "entry",
         note: activeIntent.editTransaction.note ?? null,
         receipt_id: activeIntent.editTransaction.receipt_id ?? null,
       });
@@ -97,26 +117,89 @@ export default function AddModal() {
       setRaw(text);
       void extractAndSetDraft(text);
     } else if (activeIntent.mode === "camera") {
+      if (!isOnline) {
+        setError(offlineAiMessage);
+        return;
+      }
       void onScanCameraAndOcr();
     } else if (activeIntent.mode === "voice") {
+      if (!isOnline) {
+        setError(offlineAiMessage);
+        return;
+      }
       void onStartRecording();
     }
-  }, [activeIntent]);
+  }, [activeIntent, isOnline, offlineAiMessage]);
+
+  useEffect(() => {
+    if (draft?.date) setTransactionDateInput(dateInputValue(draft.date));
+    else if (draft) setTransactionDateInput(dateInputValue(new Date().toISOString()));
+  }, [draft?.date, !!draft]);
 
 
   // â”€â”€â”€ Determine if we are in "focused" mode (no full Quick Add AI UI) â”€â”€â”€â”€â”€â”€â”€
   const isFocusedMode = !!activeIntent;
-  const canSaveDraft = !!draft && draft.amount > 0 && !!draft.merchant?.trim() && !!draft.category?.trim() && !loading && !saving && !voiceLoading && !ocrLoading;
+  const hasValidTransactionDate = /^\d{4}-\d{2}-\d{2}$/.test(transactionDateInput) && !Number.isNaN(new Date(`${transactionDateInput}T00:00:00`).getTime());
+  const canSaveDraft =
+    !!draft &&
+    draft.amount > 0 &&
+    !!draft.merchant?.trim() &&
+    !!draft.category?.trim() &&
+    hasValidTransactionDate &&
+    !loading &&
+    !saving &&
+    !voiceLoading &&
+    !ocrLoading;
 
   function receiptDraftFromResult(result: { amount: number; merchant?: string; category?: string; date?: string; note?: string; receiptId?: string }) {
+    const receiptDate = receiptDateOrNow(result.date);
     return {
       amount: result.amount,
       merchant: result.merchant?.trim() || (language === "vi" ? "Hóa đơn" : "Receipt"),
       category: result.category?.trim() || "Others",
-      date: result.date ?? new Date().toISOString(),
+      date: receiptDate.iso,
+      dateSource: receiptDate.fromReceipt ? "receipt" as const : "scan" as const,
       note: result.note ?? null,
       receipt_id: result.receiptId ?? null,
     };
+  }
+
+  function receiptDateOrNow(value?: string | null) {
+    if (!value) return { iso: new Date().toISOString(), fromReceipt: false };
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return { iso: new Date().toISOString(), fromReceipt: false };
+    return { iso: date.toISOString(), fromReceipt: true };
+  }
+
+  function entryDateOrNow() {
+    return new Date().toISOString();
+  }
+
+  function dateInputValue(value?: string | null) {
+    const date = value ? new Date(value) : new Date();
+    if (Number.isNaN(date.getTime())) return formatLocalDate(new Date());
+    return formatLocalDate(date);
+  }
+
+  function formatLocalDate(date: Date) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  }
+
+  function updateDraftDate(value: string) {
+    if (!draft) return;
+    const clean = value.replace(/[^\d-]/g, "").slice(0, 10);
+    setTransactionDateInput(clean);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(clean)) {
+      return;
+    }
+    const current = draft.date ? new Date(draft.date) : new Date();
+    const next = new Date(current);
+    const [year, month, day] = clean.split("-").map(Number);
+    next.setFullYear(year, month - 1, day);
+    setDraft({ ...draft, date: next.toISOString(), dateSource: draft.dateSource === "receipt" ? "receipt" : "entry" });
   }
 
   // â”€â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -129,7 +212,8 @@ export default function AddModal() {
         amount: result.amount,
         merchant: result.merchant ?? null,
         category: result.category ?? null,
-        date: result.date ?? null,
+        date: entryDateOrNow(),
+        dateSource: "entry",
         note: result.note ?? null,
       });
     } catch (e) {
@@ -146,6 +230,10 @@ export default function AddModal() {
   async function onStartRecording() {
     if (recorderState.isRecording) return;
     setError(null);
+    if (!isOnline) {
+      setError(offlineAiMessage);
+      return;
+    }
     try {
       console.log("[add] voice:start", Platform.OS);
       if (Platform.OS === "web") {
@@ -217,7 +305,8 @@ export default function AddModal() {
           amount: result.amount,
           merchant: result.merchant ?? null,
           category: result.category ?? null,
-          date: result.date ?? null,
+          date: entryDateOrNow(),
+          dateSource: "entry",
           note: result.note ?? null,
         });
       } catch (e) {
@@ -247,7 +336,8 @@ export default function AddModal() {
         amount: result.amount,
         merchant: result.merchant ?? null,
         category: result.category ?? null,
-        date: result.date ?? null,
+        date: entryDateOrNow(),
+        dateSource: "entry",
         note: result.note ?? null,
       });
     } catch (e) {
@@ -258,6 +348,10 @@ export default function AddModal() {
   }
 
   async function onScanCameraAndOcr() {
+    if (!isOnline) {
+      setError(offlineAiMessage);
+      return;
+    }
     setOcrLoading(true);
     setError(null);
     try {
@@ -284,6 +378,10 @@ export default function AddModal() {
   }
 
   async function onPickReceiptAndOcr() {
+    if (!isOnline) {
+      setError(offlineAiMessage);
+      return;
+    }
     setOcrLoading(true);
     setError(null);
     try {
@@ -373,6 +471,55 @@ export default function AddModal() {
     if (!draft) return;
     setDraft({ ...draft, category: categoryName ?? "" });
     setCategoryOpen(false);
+  }
+
+  function renderTransactionDateField() {
+    if (!draft) return null;
+    const fromReceipt = draft.dateSource === "receipt";
+    return (
+      <View className="mb-4">
+        <View className="flex-row items-center justify-between mb-1">
+          <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+            {language === "vi" ? "Ngày giao dịch" : "Transaction date"}
+          </Text>
+          {fromReceipt ? (
+            <View className="rounded-full bg-emerald-50 px-2 py-0.5">
+              <Text className="text-[9px] font-black text-emerald-600">
+                {language === "vi" ? "Lấy từ hóa đơn" : "From receipt"}
+              </Text>
+            </View>
+          ) : null}
+        </View>
+        <View
+          className={`flex-row items-center gap-2 rounded-2xl px-4 py-2.5 ${
+            fromReceipt ? "bg-emerald-50 border border-emerald-200" : "bg-slate-50 border border-slate-100"
+          }`}
+        >
+          <Ionicons name="calendar-outline" size={16} color={fromReceipt ? "#059669" : "#64748b"} />
+          <TextInput
+            value={transactionDateInput}
+            onChangeText={updateDraftDate}
+            keyboardType="numbers-and-punctuation"
+            placeholder="YYYY-MM-DD"
+            placeholderTextColor="#94a3b8"
+            className="flex-1 text-sm font-bold text-slate-800"
+          />
+        </View>
+        <Text className={`text-[10px] font-semibold mt-1 px-1 ${hasValidTransactionDate ? "text-slate-400" : "text-rose-500"}`}>
+          {hasValidTransactionDate
+            ? fromReceipt
+              ? language === "vi"
+                ? "AI Camera đã đọc được ngày trên hóa đơn. Bạn vẫn có thể sửa nếu cần."
+                : "AI Camera found the receipt date. You can edit it if needed."
+              : language === "vi"
+              ? "Mặc định là ngày nạp giao dịch."
+              : "Defaults to the date you add the transaction."
+            : language === "vi"
+            ? "Nhập ngày theo định dạng YYYY-MM-DD."
+            : "Enter a date in YYYY-MM-DD format."}
+        </Text>
+      </View>
+    );
   }
 
   function renderCategoryPicker() {
@@ -504,6 +651,7 @@ export default function AddModal() {
                 <Text className="text-sm font-black text-slate-700 mb-1">{t("readyToRecord")}</Text>
                 <Pressable
                   onPress={onStartRecording}
+                  disabled={!isOnline}
                   style={{
                     backgroundColor: "#4f46e5",
                     borderRadius: 16,
@@ -512,6 +660,7 @@ export default function AddModal() {
                     paddingHorizontal: 24,
                     paddingVertical: 12,
                     alignItems: "center",
+                    opacity: isOnline ? 1 : 0.4,
                   }}
                 >
                   <Text className="text-white font-black">{t("startRecording")}</Text>
@@ -541,7 +690,8 @@ export default function AddModal() {
             </Text>
             <Pressable
               onPress={onScanCameraAndOcr}
-              className="bg-emerald-600 px-6 py-3 rounded-2xl shadow-md active:scale-95"
+              disabled={!isOnline}
+              className={`bg-emerald-600 px-6 py-3 rounded-2xl shadow-md active:scale-95 ${!isOnline ? "opacity-40" : ""}`}
             >
               <Text className="text-white font-black">{t("openCamera")}</Text>
             </Pressable>
@@ -639,6 +789,8 @@ export default function AddModal() {
               </View>
             </View>
 
+            {renderTransactionDateField()}
+
             {renderCategoryPicker()}
 
             {/* Note */}
@@ -698,8 +850,16 @@ export default function AddModal() {
         </Pressable>
       </View>
       <Text className="text-xs text-slate-400 font-semibold mb-4 leading-relaxed">
-        Speak, snap a receipt, or type natively. We'll automatically identify merchant, category, and total!
+        {language === "vi"
+          ? "Nói, chụp hóa đơn hoặc nhập bằng AI Note. Khi offline, AI Note vẫn dùng được."
+          : "Speak, snap a receipt, or type with AI Note. When offline, AI Note still works."}
       </Text>
+      {!isOnline ? (
+        <View className="flex-row items-center gap-2 bg-amber-50 border border-amber-100 rounded-2xl p-3 mb-3">
+          <Ionicons name="cloud-offline-outline" size={18} color="#d97706" />
+          <Text className="text-xs text-amber-700 font-bold flex-1">{offlineAiMessage}</Text>
+        </View>
+      ) : null}
 
       {/* Input Action Panel */}
       <View className="gap-3 mb-3">
@@ -709,7 +869,7 @@ export default function AddModal() {
             ? "w-full flex-row items-center justify-center gap-1.5 rounded-2xl py-4 shadow-sm active:scale-95 bg-rose-500"
             : "w-full flex-row items-center justify-center gap-1.5 rounded-2xl py-4 shadow-sm active:scale-95 bg-indigo-500";
           return (
-            <Pressable onPress={recorderState.isRecording ? onStopAndTranscribe : onStartRecording} disabled={voiceLoading} className={voiceButtonClass}>
+            <Pressable onPress={recorderState.isRecording ? onStopAndTranscribe : onStartRecording} disabled={voiceLoading || !isOnline} className={`${voiceButtonClass} ${!isOnline ? "opacity-40" : ""}`}>
               {voiceLoading ? (
                 <ActivityIndicator color="white" size="small" />
               ) : (
@@ -726,8 +886,8 @@ export default function AddModal() {
         <View className="flex-row gap-3">
           <Pressable
             onPress={onScanCameraAndOcr}
-            disabled={ocrLoading}
-            className="flex-1 flex-row items-center justify-center gap-1.5 rounded-2xl bg-emerald-600 py-3.5 shadow-sm active:scale-95"
+            disabled={ocrLoading || !isOnline}
+            className={`flex-1 flex-row items-center justify-center gap-1.5 rounded-2xl bg-emerald-600 py-3.5 shadow-sm active:scale-95 ${!isOnline ? "opacity-40" : ""}`}
           >
             {ocrLoading ? <ActivityIndicator color="white" size="small" /> : <Ionicons name="camera-outline" size={18} color="white" />}
             <Text className="text-white font-extrabold text-xs">{ocrLoading ? "Scanning..." : "AI Camera"}</Text>
@@ -829,6 +989,8 @@ export default function AddModal() {
               />
             </View>
           </View>
+
+          {renderTransactionDateField()}
 
           {renderCategoryPicker()}
 

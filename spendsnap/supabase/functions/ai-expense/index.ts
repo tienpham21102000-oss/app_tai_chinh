@@ -6,7 +6,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const VALID_CATEGORIES = ["Food", "Drinks", "Travel", "Shopping", "Entertainment", "Bills", "Others"];
+const VALID_CATEGORIES = ["Food", "Transport", "Shopping", "Housing", "Health", "Education", "Entertainment", "Family", "Work", "Investment", "Others"];
 const FREE_DAILY_AI_LIMIT = 20;
 const PREMIUM_DAILY_AI_LIMIT = 500;
 

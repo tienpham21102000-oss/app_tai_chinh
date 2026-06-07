@@ -38,25 +38,51 @@ function getCategoryBg(category: string): string {
 function getCanonicalCategoryBg(category: string): string {
   const normalized = normalizeCategoryName(category);
   if (normalized === "Food") return "bg-orange-50";
-  if (normalized === "Drinks") return "bg-amber-50";
-  if (normalized === "Travel") return "bg-sky-50";
+  if (normalized === "Transport") return "bg-sky-50";
   if (normalized === "Shopping") return "bg-purple-50";
+  if (normalized === "Housing") return "bg-emerald-50";
+  if (normalized === "Health") return "bg-rose-50";
+  if (normalized === "Education") return "bg-blue-50";
   if (normalized === "Entertainment") return "bg-rose-50";
-  if (normalized === "Bills") return "bg-emerald-50";
+  if (normalized === "Family") return "bg-amber-50";
+  if (normalized === "Work") return "bg-indigo-50";
+  if (normalized === "Investment") return "bg-lime-50";
   return "bg-slate-100";
 }
 
 const CATEGORY_ORDER = CANONICAL_CATEGORIES;
 const CATEGORY_HEX_COLORS: Record<string, string> = {
-  Food: "#f97316", Drinks: "#d97706", Travel: "#0ea5e9",
-  Shopping: "#a855f7", Entertainment: "#f43f5e", Bills: "#10b981", Others: "#94a3b8",
+  Food: "#f97316",
+  Transport: "#0ea5e9",
+  Shopping: "#a855f7",
+  Housing: "#10b981",
+  Health: "#f43f5e",
+  Education: "#3b82f6",
+  Entertainment: "#ec4899",
+  Family: "#f59e0b",
+  Work: "#6366f1",
+  Investment: "#84cc16",
+  Others: "#94a3b8",
 };
 const CATEGORY_TAILWIND_COLORS: Record<string, string> = {
-  Food: "bg-orange-500", Drinks: "bg-amber-500", Travel: "bg-sky-500",
-  Shopping: "bg-purple-500", Entertainment: "bg-rose-500", Bills: "bg-emerald-500", Others: "bg-slate-400",
+  Food: "bg-orange-500",
+  Transport: "bg-sky-500",
+  Shopping: "bg-purple-500",
+  Housing: "bg-emerald-500",
+  Health: "bg-rose-500",
+  Education: "bg-blue-500",
+  Entertainment: "bg-pink-500",
+  Family: "bg-amber-500",
+  Work: "bg-indigo-500",
+  Investment: "bg-lime-500",
+  Others: "bg-slate-400",
 };
 const WEEKDAY_LABELS = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"];
 const MONTH_LABELS = ["1","2","3","4","5","6","7","8","9","10","11","12"];
+
+function emptyCategoryTotals() {
+  return Object.fromEntries(CATEGORY_ORDER.map((category) => [category, 0])) as Record<string, number>;
+}
 
 function normalizeCategory(raw: string): string {
   const norm = raw.toLowerCase();
@@ -186,10 +212,9 @@ export default function AnalyticsScreen() {
   const [viewMode, setViewMode] = useState<ViewMode>("month");
   const [selectedMonth, setSelectedMonth] = useState<Date>(new Date());
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
-  const [visibleCategories, setVisibleCategories] = useState<Record<string, boolean>>({
-    Food: true, Drinks: true, Travel: true,
-    Shopping: true, Entertainment: true, Bills: true, Others: true,
-  });
+  const [visibleCategories, setVisibleCategories] = useState<Record<string, boolean>>(
+    Object.fromEntries(CATEGORY_ORDER.map((category) => [category, true])) as Record<string, boolean>
+  );
   const [chartWidth, setChartWidth] = useState(0);
   const [tooltip, setTooltip] = useState<{ x: number, y: number, text: string } | null>(null);
 
@@ -210,7 +235,7 @@ export default function AnalyticsScreen() {
     const ms = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth(), 1);
     const me = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + 1, 0);
     for (let d = new Date(ms); d <= me; d.setDate(d.getDate() + 1)) {
-      dm[d.toISOString().split("T")[0]] = { Food: 0, Drinks: 0, Travel: 0, Shopping: 0, Entertainment: 0, Bills: 0, Others: 0 };
+      dm[d.toISOString().split("T")[0]] = emptyCategoryTotals();
     }
     monthlyTransactions.forEach((t) => {
       const k = safeDateKey(t.date ?? t.created_at);
@@ -251,7 +276,7 @@ export default function AnalyticsScreen() {
 
   const monthlyCategoryBreakdown = useMemo(() => {
     const mm: Record<string, Record<string, number>> = {};
-    for (let m = 0; m < 12; m++) mm[`${selectedYear}-${String(m + 1).padStart(2, "0")}`] = { Food: 0, Drinks: 0, Travel: 0, Shopping: 0, Entertainment: 0, Bills: 0, Others: 0 };
+    for (let m = 0; m < 12; m++) mm[`${selectedYear}-${String(m + 1).padStart(2, "0")}`] = emptyCategoryTotals();
     yearlyTransactions.forEach((t) => {
       const d = new Date(t.date ?? t.created_at ?? "");
       const k = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
@@ -282,7 +307,7 @@ export default function AnalyticsScreen() {
 
   const weeklyCategoryTotals = useMemo(() => {
     const t: Array<Record<string, number>> = [];
-    for (let w = 0; w < calendarWeeks.length; w++) t.push({ Food: 0, Drinks: 0, Travel: 0, Shopping: 0, Entertainment: 0, Bills: 0, Others: 0 });
+    for (let w = 0; w < calendarWeeks.length; w++) t.push(emptyCategoryTotals());
     calendarWeeks.forEach((wk, wi) => wk.forEach((d) => { const b = dailyCategoryBreakdown[d.dayStr]; if (!b) return; CATEGORY_ORDER.forEach((c) => { t[wi][c] += b[c] || 0; }); }));
     return t;
   }, [calendarWeeks, dailyCategoryBreakdown]);

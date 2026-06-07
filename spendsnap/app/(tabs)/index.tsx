@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Animated, FlatList, KeyboardAvoidingView, Modal, Platform, Pressable, Text, TextInput, View } from "react-native";
+import { Alert, Animated, FlatList, KeyboardAvoidingView, Modal, Platform, Pressable, Text, TextInput, View } from "react-native";
 import { router, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import NetInfo from "@react-native-community/netinfo";
 
 import { useTransactionsStore } from "../../stores/transactions";
 import { useAddIntentStore } from "../../stores/addIntent";
@@ -57,6 +58,7 @@ export default function HomeScreen() {
   const { t, language } = useI18n();
   const [now] = useState(() => new Date());
   const [monthlyBudget, setMonthlyBudget] = useState<number>(DEFAULT_BUDGET);
+  const [isOnline, setIsOnline] = useState(true);
 
   // Pet state
   const [petLevel, setPetLevel] = useState(0);
@@ -70,6 +72,11 @@ export default function HomeScreen() {
 
   function handleQuickTypeSubmit() {}
 
+  const offlineAiMessage =
+    language === "vi"
+      ? "Không có internet. AI Voice và AI Camera cần mạng; vui lòng dùng AI Note để nhập chi tiêu."
+      : "No internet connection. AI Voice and AI Camera require internet; please use AI Note to add expenses.";
+
   // ─── Animation refs ──────────────────────────────────────────────────────
   const petAnimY = useRef(new Animated.Value(0)).current;
   const petAnimX = useRef(new Animated.Value(0)).current;
@@ -80,6 +87,16 @@ export default function HomeScreen() {
   useEffect(() => {
     void refreshToday().then(() => setTxLoaded(true));
   }, [refreshToday]);
+
+  useEffect(() => {
+    const unsubscribe = NetInfo.addEventListener((state) => {
+      setIsOnline(Boolean(state.isConnected && state.isInternetReachable !== false));
+    });
+    void NetInfo.fetch().then((state) => {
+      setIsOnline(Boolean(state.isConnected && state.isInternetReachable !== false));
+    });
+    return unsubscribe;
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
@@ -562,10 +579,14 @@ export default function HomeScreen() {
         {/* AI Voice */}
         <Pressable
           onPress={() => {
+            if (!isOnline) {
+              Alert.alert(language === "vi" ? "Không có internet" : "No internet", offlineAiMessage);
+              return;
+            }
             setAddIntent({ mode: "voice" });
             router.push("/add");
           }}
-          className="flex-1 items-center justify-center gap-1.5 rounded-3xl bg-indigo-50 border border-indigo-100 py-4 shadow-sm active:scale-95"
+          className={`flex-1 items-center justify-center gap-1.5 rounded-3xl bg-indigo-50 border border-indigo-100 py-4 shadow-sm active:scale-95 ${!isOnline ? "opacity-40" : ""}`}
         >
           <Ionicons name="mic" size={24} color="#4f46e5" />
           <Text className="text-[#4f46e5] text-sm font-black">{t("aiVoice")}</Text>
@@ -574,10 +595,14 @@ export default function HomeScreen() {
         {/* Scan Bill */}
         <Pressable
           onPress={() => {
+            if (!isOnline) {
+              Alert.alert(language === "vi" ? "Không có internet" : "No internet", offlineAiMessage);
+              return;
+            }
             setAddIntent({ mode: "camera" });
             router.push("/add");
           }}
-          className="flex-1 items-center justify-center gap-1.5 rounded-3xl bg-emerald-50 border border-emerald-100 py-4 shadow-sm active:scale-95"
+          className={`flex-1 items-center justify-center gap-1.5 rounded-3xl bg-emerald-50 border border-emerald-100 py-4 shadow-sm active:scale-95 ${!isOnline ? "opacity-40" : ""}`}
         >
           <Ionicons name="camera" size={24} color="#059669" />
           <Text className="text-[#059669] text-sm font-black">{t("scanBill")}</Text>

@@ -4,12 +4,10 @@ import { useMemo, useState } from "react";
 import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 
 import { useAuthStore } from "../stores/auth";
-import { useI18n } from "../utils/i18n";
 
 type Mode = "sign-in" | "sign-up";
 
 export default function AuthScreen() {
-  const { language } = useI18n();
   const [mode, setMode] = useState<Mode>("sign-in");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -19,28 +17,24 @@ export default function AuthScreen() {
   const signInWithGoogle = useAuthStore((s) => s.signInWithGoogle);
   const googleAuthEnabled = process.env.EXPO_PUBLIC_ENABLE_GOOGLE_AUTH === "1";
 
-  const copy = useMemo(() => {
-    const vi = language === "vi";
-    return {
-      title: vi ? "Dang nhap SpendSnap" : "Sign in to SpendSnap",
-      subtitle: vi
-        ? "Dong bo chi tieu, bao ve du lieu va dung AI an toan qua tai khoan cua ban."
-        : "Sync expenses, protect your data, and use AI securely with your account.",
+  const copy = useMemo(
+    () => ({
+      title: "Sign in to SpendSnap",
+      subtitle: "Sync expenses, protect your data, and use AI securely with your account.",
       email: "Email",
-      password: vi ? "Mat khau" : "Password",
-      signIn: vi ? "Dang nhap" : "Sign in",
-      signUp: vi ? "Tao tai khoan" : "Create account",
-      google: vi ? "Tiep tuc voi Google" : "Continue with Google",
-      switchToSignUp: vi ? "Chua co tai khoan? Tao tai khoan" : "No account yet? Create one",
-      switchToSignIn: vi ? "Da co tai khoan? Dang nhap" : "Already have an account? Sign in",
-      hint: vi
-        ? "Toi thieu 6 ky tu. Neu Supabase bat xac nhan email, hay kiem tra hop thu sau khi dang ky."
-        : "Minimum 6 characters. If Supabase email confirmation is enabled, check your inbox after signing up.",
-      invalid: vi ? "Vui long nhap email hop le va mat khau it nhat 6 ky tu." : "Enter a valid email and a password with at least 6 characters.",
-      done: vi ? "Hoan tat" : "Done",
-      signupDone: vi ? "Tai khoan da duoc tao. Hay xac nhan email neu Supabase yeu cau." : "Account created. Confirm your email if Supabase requires it.",
-    };
-  }, [language]);
+      password: "Password",
+      signIn: "Sign in",
+      signUp: "Create account",
+      google: "Continue with Google",
+      switchToSignUp: "No account yet? Create one",
+      switchToSignIn: "Already have an account? Sign in",
+      hint: "Minimum 6 characters. If Supabase email confirmation is enabled, check your inbox after signing up.",
+      invalid: "Enter a valid email and a password with at least 6 characters.",
+      done: "Done",
+      signupDone: "Account created. Confirm your email if Supabase requires it.",
+    }),
+    []
+  );
 
   const canSubmit = email.includes("@") && password.length >= 6 && !loading;
 
@@ -120,9 +114,10 @@ export default function AuthScreen() {
             <Pressable
               onPress={() => void google()}
               disabled={loading}
-              className="mt-3 rounded-2xl border border-slate-200 bg-white py-4 items-center active:opacity-75 disabled:opacity-40"
+              className="mt-3 flex-row items-center justify-center gap-2 rounded-2xl bg-blue-600 py-4 active:opacity-75 disabled:opacity-40"
             >
-              <Text className="text-sm font-black text-slate-700">{copy.google}</Text>
+              <Ionicons name="logo-google" size={17} color="white" />
+              <Text className="text-sm font-black text-white">{copy.google}</Text>
             </Pressable>
           ) : null}
 

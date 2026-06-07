@@ -1,6 +1,6 @@
 import {
-  ensureDbReady,
   clearPendingTransactionDeletions,
+  ensureDbReady,
   getSetting,
   listCategories,
   listPendingTransactionDeletions,
@@ -35,10 +35,33 @@ const TABLE = "transactions";
 const CATEGORY_TABLE = "categories";
 const SETTINGS_TABLE = "user_settings";
 
+function describeSupabaseError(error: unknown): string {
+  if (!error) return "Unknown error";
+  if (error instanceof Error && error.message) return error.message;
+  if (typeof error === "string") return error;
+  if (typeof error === "object") {
+    const record = error as Record<string, unknown>;
+    const parts = [record.message, record.code, record.details, record.hint]
+      .map((value) => (typeof value === "string" ? value.trim() : ""))
+      .filter(Boolean);
+    if (parts.length > 0) return parts.join(" | ");
+    try {
+      return JSON.stringify(record);
+    } catch {
+      return "Unknown error";
+    }
+  }
+  return "Unknown error";
+}
+
+function throwSupabaseError(error: unknown, context: string): never {
+  throw new Error(`${context}: ${describeSupabaseError(error)}`);
+}
+
 async function ensureSessionUserId(): Promise<string> {
   const supabase = getSupabaseClient();
   const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-  if (sessionError) throw sessionError;
+  if (sessionError) throwSupabaseError(sessionError, "Supabase auth");
   if (sessionData.session?.user?.id) return sessionData.session.user.id;
   throw new Error("You must sign in before syncing data.");
 }
@@ -73,7 +96,7 @@ export async function syncTransactionsToSupabase(): Promise<{ pushed: number; pu
       .delete()
       .eq("user_id", userId)
       .in("id", pendingDeletes);
-    if (deleteError) throw deleteError;
+    if (deleteError) throwSupabaseError(deleteError, "Delete remote transactions");
     await clearPendingTransactionDeletions(pendingDeletes);
   }
 
@@ -97,7 +120,7 @@ export async function syncTransactionsToSupabase(): Promise<{ pushed: number; pu
     }));
 
     const { error: pushError } = await supabase.from(TABLE).upsert(payload, { onConflict: "id" });
-    if (pushError) throw pushError;
+    if (pushError) throwSupabaseError(pushError, "Push transactions");
 
     await markTransactionsSynced(unsynced.map((t) => t.id));
   }
@@ -110,7 +133,7 @@ export async function syncTransactionsToSupabase(): Promise<{ pushed: number; pu
     )
     .eq("user_id", userId);
 
-  if (pullError) throw pullError;
+  if (pullError) throwSupabaseError(pullError, "Pull transactions");
 
   const remoteRows = (remote ?? []) as RemoteTransactionRow[];
   for (const r of remoteRows) {
@@ -132,7 +155,7 @@ async function syncCategories(supabase: ReturnType<typeof getSupabaseClient>, us
     .select("id,user_id,name,icon,color,sort_order,deleted_at,updated_at")
     .eq("user_id", userId)
     .is("deleted_at", null);
-  if (pullError) throw pullError;
+  if (pullError) throwSupabaseError(pullError, "Pull categories");
 
   for (const row of remote ?? []) {
     await upsertCategory({
@@ -158,7 +181,7 @@ async function syncCategories(supabase: ReturnType<typeof getSupabaseClient>, us
     const { error: pushError } = await supabase
       .from(CATEGORY_TABLE)
       .upsert(payload, { onConflict: "user_id,id" });
-    if (pushError) throw pushError;
+    if (pushError) throwSupabaseError(pushError, "Push categories");
   }
 }
 
@@ -167,7 +190,7 @@ async function syncSettings(supabase: ReturnType<typeof getSupabaseClient>, user
     .from(SETTINGS_TABLE)
     .select("key,value,updated_at")
     .eq("user_id", userId);
-  if (pullError) throw pullError;
+  if (pullError) throwSupabaseError(pullError, "Pull settings");
 
   for (const row of remote ?? []) {
     if (typeof row.key === "string") await setSetting(row.key, row.value ?? "");
@@ -186,7 +209,7 @@ async function syncSettings(supabase: ReturnType<typeof getSupabaseClient>, user
     const { error: pushError } = await supabase
       .from(SETTINGS_TABLE)
       .upsert(payload, { onConflict: "user_id,key" });
-    if (pushError) throw pushError;
+    if (pushError) throwSupabaseError(pushError, "Push settings");
   }
 }
 
@@ -204,12 +227,27 @@ export async function syncTransactionsToSupabaseIfEnabled(): Promise<{ pushed: n
   return await syncTransactionsToSupabase();
 }
 
+export async function getSupabaseSyncStatus(): Promise<{ enabled: boolean; unsynced: number; pendingDeletes: number; configured: boolean }> {
+  await ensureDbReady();
+  const [enabled, unsynced, pendingDeletes] = await Promise.all([
+    isSupabaseSyncEnabled(),
+    listUnsyncedTransactions(),
+    listPendingTransactionDeletions(),
+  ]);
+  return {
+    enabled,
+    unsynced: unsynced.length,
+    pendingDeletes: pendingDeletes.length,
+    configured: isSupabaseConfigured(),
+  };
+}
+
 export async function deleteTransactionFromSupabaseIfEnabled(id: string): Promise<void> {
   if (!(await isSupabaseSyncEnabled())) return;
   const supabase = getSupabaseClient();
   const userId = await ensureSessionUserId();
   const { error } = await supabase.from(TABLE).delete().eq("id", id).eq("user_id", userId);
-  if (error) throw error;
+  if (error) throwSupabaseError(error, "Delete remote transaction");
   await clearPendingTransactionDeletions([id]);
 }
 
@@ -218,7 +256,7 @@ export async function deleteCategoryFromSupabaseIfEnabled(id: string): Promise<v
   const supabase = getSupabaseClient();
   const userId = await ensureSessionUserId();
   const { error } = await supabase.from(CATEGORY_TABLE).delete().eq("id", id).eq("user_id", userId);
-  if (error) throw error;
+  if (error) throwSupabaseError(error, "Delete remote category");
 }
 
 export async function replaceCategoriesInSupabaseIfEnabled(): Promise<void> {
@@ -226,19 +264,9 @@ export async function replaceCategoriesInSupabaseIfEnabled(): Promise<void> {
   const supabase = getSupabaseClient();
   const userId = await ensureSessionUserId();
   const local = await listCategories();
-  const localIds = local.map((category) => category.id);
 
-  if (localIds.length > 0) {
-    const { error: deleteMissingError } = await supabase
-      .from(CATEGORY_TABLE)
-      .delete()
-      .eq("user_id", userId)
-      .not("id", "in", `(${localIds.map((id) => `"${id}"`).join(",")})`);
-    if (deleteMissingError) throw deleteMissingError;
-  } else {
-    const { error: deleteAllError } = await supabase.from(CATEGORY_TABLE).delete().eq("user_id", userId);
-    if (deleteAllError) throw deleteAllError;
-  }
+  const { error: deleteAllError } = await supabase.from(CATEGORY_TABLE).delete().eq("user_id", userId);
+  if (deleteAllError) throwSupabaseError(deleteAllError, "Replace remote categories");
 
   const payload = local.map((c, index) => ({
     id: c.id,
@@ -252,6 +280,6 @@ export async function replaceCategoriesInSupabaseIfEnabled(): Promise<void> {
 
   if (payload.length > 0) {
     const { error: upsertError } = await supabase.from(CATEGORY_TABLE).upsert(payload, { onConflict: "user_id,id" });
-    if (upsertError) throw upsertError;
+    if (upsertError) throwSupabaseError(upsertError, "Push replacement categories");
   }
 }
