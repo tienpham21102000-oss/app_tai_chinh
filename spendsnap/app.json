@@ -17,6 +17,13 @@
       "supportsTablet": true
     },
     "android": {
+      "package": "com.spendsnap.app",
+      "versionCode": 1,
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.POST_NOTIFICATIONS"
+      ],
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
@@ -31,7 +38,17 @@
       "expo-router",
       "expo-sqlite",
       "expo-asset",
-      "expo-audio"
-    ]
+      "expo-audio",
+      "expo-notifications",
+      "expo-web-browser",
+      "expo-font"
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "cae39f37-ad1e-4b26-a3d5-b5a8b108f3da"
+      }
+    },
+    "owner": "apptaichinh"
   }
 }

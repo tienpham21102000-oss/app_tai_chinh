@@ -19,6 +19,7 @@ import { transcribeAudio, transcribeAudioWeb } from "../services/stt";
 import { useAddIntentStore } from "../stores/addIntent";
 import { useTransactionsStore } from "../stores/transactions";
 import { useI18n } from "../utils/i18n";
+import { categoryLabel } from "../utils/categories";
 import { formatMoneyVnd, parseMoneyToVnd } from "../utils/money";
 
 export default function AddModal() {
@@ -35,6 +36,7 @@ export default function AddModal() {
     category?: string | null;
     date?: string | null;
     note?: string | null;
+    receipt_id?: string | null;
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
@@ -87,6 +89,7 @@ export default function AddModal() {
         category: activeIntent.editTransaction.category ?? null,
         date: activeIntent.editTransaction.date ?? null,
         note: activeIntent.editTransaction.note ?? null,
+        receipt_id: activeIntent.editTransaction.receipt_id ?? null,
       });
       setRaw(activeIntent.editTransaction.raw_text ?? "");
     } else if (activeIntent.mode === "text" && activeIntent.raw?.trim()) {
@@ -105,12 +108,23 @@ export default function AddModal() {
   const isFocusedMode = !!activeIntent;
   const canSaveDraft = !!draft && draft.amount > 0 && !!draft.merchant?.trim() && !!draft.category?.trim() && !loading && !saving && !voiceLoading && !ocrLoading;
 
+  function receiptDraftFromResult(result: { amount: number; merchant?: string; category?: string; date?: string; note?: string; receiptId?: string }) {
+    return {
+      amount: result.amount,
+      merchant: result.merchant?.trim() || (language === "vi" ? "Hóa đơn" : "Receipt"),
+      category: result.category?.trim() || "Others",
+      date: result.date ?? new Date().toISOString(),
+      note: result.note ?? null,
+      receipt_id: result.receiptId ?? null,
+    };
+  }
+
   // â”€â”€â”€ Helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   async function extractAndSetDraft(text: string) {
     setLoading(true);
     setError(null);
     try {
-      const result = await extractTransactionFromText(text);
+      const result = await extractTransactionFromText(text, language);
       setDraft({
         amount: result.amount,
         merchant: result.merchant ?? null,
@@ -198,7 +212,7 @@ export default function AddModal() {
         const text = await transcribeAudioWeb(blob, mimeType);
         setLastVoiceText(text);
         setRaw(text);
-        const result = await extractTransactionFromText(text);
+        const result = await extractTransactionFromText(text, language);
         setDraft({
           amount: result.amount,
           merchant: result.merchant ?? null,
@@ -228,7 +242,7 @@ export default function AddModal() {
       const text = await transcribeAudio(uri);
       setLastVoiceText(text);
       setRaw(text);
-      const result = await extractTransactionFromText(text);
+      const result = await extractTransactionFromText(text, language);
       setDraft({
         amount: result.amount,
         merchant: result.merchant ?? null,
@@ -259,14 +273,8 @@ export default function AddModal() {
       const asset = picked.assets?.[0];
       if (!asset?.uri) throw new Error("No image captured.");
 
-      const result = await extractTransactionFromReceiptImage(asset.uri);
-      setDraft({
-        amount: result.amount,
-        merchant: result.merchant ?? null,
-        category: result.category ?? null,
-        date: result.date ?? null,
-        note: result.note ?? null,
-      });
+      const result = await extractTransactionFromReceiptImage(asset.uri, language);
+      setDraft(receiptDraftFromResult(result));
       setRaw((prev) => prev || "Receipt OCR (Camera)");
     } catch (e) {
       setError(e instanceof Error ? e.message : "OCR from Camera failed.");
@@ -291,14 +299,8 @@ export default function AddModal() {
       const asset = picked.assets?.[0];
       if (!asset?.uri) throw new Error("No image selected.");
 
-      const result = await extractTransactionFromReceiptImage(asset.uri);
-      setDraft({
-        amount: result.amount,
-        merchant: result.merchant ?? null,
-        category: result.category ?? null,
-        date: result.date ?? null,
-        note: result.note ?? null,
-      });
+      const result = await extractTransactionFromReceiptImage(asset.uri, language);
+      setDraft(receiptDraftFromResult(result));
       setRaw((prev) => prev || "Receipt OCR (Gallery)");
     } catch (e) {
       setError(e instanceof Error ? e.message : "OCR failed.");
@@ -314,14 +316,8 @@ export default function AddModal() {
       const asset = Asset.fromModule(require("../assets/receipt-test.png"));
       if (!asset.localUri) await asset.downloadAsync();
       const uri = asset.localUri ?? asset.uri;
-      const result = await extractTransactionFromReceiptImage(uri);
-      setDraft({
-        amount: result.amount,
-        merchant: result.merchant ?? null,
-        category: result.category ?? null,
-        date: result.date ?? null,
-        note: result.note ?? null,
-      });
+      const result = await extractTransactionFromReceiptImage(uri, language);
+      setDraft(receiptDraftFromResult(result));
       setRaw("Receipt OCR (test image)");
     } catch (e) {
       setError(e instanceof Error ? e.message : "OCR failed.");
@@ -352,6 +348,7 @@ export default function AddModal() {
           category: draft.category ?? undefined,
           date: draft.date ?? undefined,
           note: draft.note ?? undefined,
+          receipt_id: draft.receipt_id ?? null,
           raw_text: raw,
           source: activeIntent?.mode === "camera" ? "camera_ocr" : activeIntent?.mode === "voice" ? "voice" : "manual_text",
         };
@@ -380,7 +377,7 @@ export default function AddModal() {
 
   function renderCategoryPicker() {
     if (!draft) return null;
-    const selected = draft.category || t("chooseCategory");
+    const selected = draft.category ? categoryLabel(draft.category, language) : t("chooseCategory");
     return (
       <View className="mb-4">
         <Text className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">{t("category")}</Text>
@@ -400,7 +397,7 @@ export default function AddModal() {
                 className="flex-row items-center gap-3 px-4 py-3 border-b border-slate-50"
               >
                 <Text className="text-base">{item.icon ?? "🏷️"}</Text>
-                <Text className="text-sm font-bold text-slate-700">{item.name ?? "Unnamed"}</Text>
+                <Text className="text-sm font-bold text-slate-700">{categoryLabel(item.name, language)}</Text>
               </Pressable>
             ))}
           </View>
@@ -695,7 +692,7 @@ export default function AddModal() {
     >
       {/* Title */}
       <View className="flex-row justify-between items-center mb-2">
-        <Text className="text-2xl font-black text-slate-900">Quick Add AI</Text>
+        <Text className="text-2xl font-black text-slate-900">AI Note</Text>
         <Pressable onPress={closeScreen} className="w-8 h-8 rounded-full bg-slate-100 items-center justify-center">
           <Ionicons name="close" size={18} color="#64748b" />
         </Pressable>
@@ -719,7 +716,7 @@ export default function AddModal() {
                 <Ionicons name={recorderState.isRecording ? "stop" : "mic-outline"} size={18} color="white" />
               )}
               <Text className="text-white font-extrabold text-xs">
-                {voiceLoading ? "Transcribingâ€¦" : recorderState.isRecording ? "Stop & Transcribe" : "Record Voice"}
+                {voiceLoading ? "Transcribing..." : recorderState.isRecording ? "Stop & Transcribe" : "AI Voice"}
               </Text>
             </Pressable>
           );
@@ -733,7 +730,7 @@ export default function AddModal() {
             className="flex-1 flex-row items-center justify-center gap-1.5 rounded-2xl bg-emerald-600 py-3.5 shadow-sm active:scale-95"
           >
             {ocrLoading ? <ActivityIndicator color="white" size="small" /> : <Ionicons name="camera-outline" size={18} color="white" />}
-            <Text className="text-white font-extrabold text-xs">{ocrLoading ? "Scanningâ€¦" : "Camera Scan"}</Text>
+            <Text className="text-white font-extrabold text-xs">{ocrLoading ? "Scanning..." : "AI Camera"}</Text>
           </Pressable>
 
           <Pressable
@@ -742,7 +739,7 @@ export default function AddModal() {
             className="flex-1 flex-row items-center justify-center gap-1.5 rounded-2xl bg-violet-600 py-3.5 shadow-sm active:scale-95"
           >
             {ocrLoading ? <ActivityIndicator color="white" size="small" /> : <Ionicons name="image-outline" size={18} color="white" />}
-            <Text className="text-white font-extrabold text-xs">{ocrLoading ? "Analyzingâ€¦" : "Upload Receipt"}</Text>
+            <Text className="text-white font-extrabold text-xs">{ocrLoading ? "Analyzing..." : "Upload Receipt"}</Text>
           </Pressable>
         </View>
       </View>
@@ -773,7 +770,7 @@ export default function AddModal() {
         <TextInput
           value={raw}
           onChangeText={setRaw}
-          placeholder="Grab 85k, Highlands cf 45k, LÆ°Æ¡ng 15M..."
+          placeholder="Grab 85k, Highlands cf 45k, salary 15M..."
           placeholderTextColor="#94a3b8"
           multiline
           className="text-sm font-semibold text-slate-800 outline-none min-h-[90px] text-left"

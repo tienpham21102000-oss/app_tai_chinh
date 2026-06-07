@@ -19,10 +19,23 @@ const WEB_KEYS = {
   transactions: "spendsnap_web_transactions_v1",
   categories: "spendsnap_web_categories_v1",
   settings: "spendsnap_web_settings_v1",
+  transactionDeletes: "spendsnap_web_transaction_deletes_v1",
 };
 
 const MOCK_SEED_KEY = "mock_seed_version";
 const MOCK_SEED_VERSION = "fixed_2022_2026_v1";
+const CATEGORY_SEED_KEY = "default_categories_seeded";
+const SHOULD_SEED_DEMO = process.env.EXPO_PUBLIC_SEED_DEMO_DATA === "1";
+
+const DEFAULT_CATEGORY_BY_ID = {
+  food: { name: "Food", icon: "\u{1f35c}", color: "#f97316" },
+  drinks: { name: "Drinks", icon: "\u{2615}", color: "#a855f7" },
+  transport: { name: "Travel", icon: "\u{1f6f5}", color: "#0ea5e9" },
+  shopping: { name: "Shopping", icon: "\u{1f6cd}\u{fe0f}", color: "#ec4899" },
+  entertainment: { name: "Entertainment", icon: "\u{1f3ac}", color: "#22c55e" },
+  bills: { name: "Bills", icon: "\u{1f9fe}", color: "#f59e0b" },
+  others: { name: "Others", icon: "\u{1f4cc}", color: "#64748b" },
+} satisfies Record<string, { name: string; icon: string; color: string }>;
 
 export const DEFAULT_CATEGORIES: Array<{
   id: string;
@@ -30,15 +43,13 @@ export const DEFAULT_CATEGORIES: Array<{
   icon: string;
   color: string;
   budget_monthly: number;
-}> = [
-  { id: "food", name: "Food", icon: "🍜", color: "#f97316", budget_monthly: 0 },
-  { id: "drinks", name: "Drinks", icon: "☕", color: "#a855f7", budget_monthly: 0 },
-  { id: "transport", name: "Transport", icon: "🛵", color: "#0ea5e9", budget_monthly: 0 },
-  { id: "shopping", name: "Shopping", icon: "🛍️", color: "#ec4899", budget_monthly: 0 },
-  { id: "entertainment", name: "Entertainment", icon: "🎬", color: "#22c55e", budget_monthly: 0 },
-  { id: "bills", name: "Bills", icon: "🧾", color: "#f59e0b", budget_monthly: 0 },
-  { id: "others", name: "Others", icon: "📌", color: "#64748b", budget_monthly: 0 },
-];
+}> = Object.entries(DEFAULT_CATEGORY_BY_ID).map(([id, value]) => ({
+  id,
+  name: value.name,
+  icon: value.icon,
+  color: value.color,
+  budget_monthly: 0,
+}));
 
 function webReadJson<T>(key: string, fallback: T): T {
   try {
@@ -57,7 +68,8 @@ function webWriteJson(key: string, value: unknown) {
 export async function ensureDbReady() {
   if (Platform.OS === "web") {
     const existing = webReadJson<DbCategoryRow[]>(WEB_KEYS.categories, []);
-    if (existing.length === 0) {
+    const settings = webReadJson<Record<string, string>>(WEB_KEYS.settings, {});
+    if (existing.length === 0 && settings?.[CATEGORY_SEED_KEY] !== "1") {
       webWriteJson(
         WEB_KEYS.categories,
         DEFAULT_CATEGORIES.map((c) => ({
@@ -68,17 +80,19 @@ export async function ensureDbReady() {
           budget_monthly: c.budget_monthly,
         } satisfies DbCategoryRow))
       );
+      webWriteJson(WEB_KEYS.settings, { ...(settings ?? {}), [CATEGORY_SEED_KEY]: "1" });
     }
     // Ensure keys exist
-    const settings = webReadJson<Record<string, string>>(WEB_KEYS.settings, {});
     if (!settings || typeof settings !== "object") webWriteJson(WEB_KEYS.settings, {});
     const tx = webReadJson<DbTransactionRow[]>(WEB_KEYS.transactions, []);
     if (!Array.isArray(tx)) {
       webWriteJson(WEB_KEYS.transactions, []);
-    } else if (!tx.some((row) => row.source === "demo") && settings?.[MOCK_SEED_KEY] !== MOCK_SEED_VERSION) {
+    } else if (SHOULD_SEED_DEMO && !tx.some((row) => row.source === "demo") && settings?.[MOCK_SEED_KEY] !== MOCK_SEED_VERSION) {
       webWriteJson(WEB_KEYS.transactions, [...tx, ...MOCK_TRANSACTIONS]);
       webWriteJson(WEB_KEYS.settings, { ...(settings ?? {}), [MOCK_SEED_KEY]: MOCK_SEED_VERSION });
     }
+    const deletes = webReadJson<Array<{ id: string; created_at: string }>>(WEB_KEYS.transactionDeletes, []);
+    if (!Array.isArray(deletes)) webWriteJson(WEB_KEYS.transactionDeletes, []);
     return;
   }
 
@@ -97,11 +111,16 @@ export async function ensureDbReady() {
       created_at TEXT,
       raw_text TEXT,
       source TEXT,
+      receipt_id TEXT,
       synced INTEGER DEFAULT 0
     );
 
     CREATE INDEX IF NOT EXISTS idx_transactions_date ON transactions(date);
   `);
+
+  try {
+    await db.execAsync("ALTER TABLE transactions ADD COLUMN receipt_id TEXT;");
+  } catch {}
 
   await db.execAsync(`
     CREATE TABLE IF NOT EXISTS categories (
@@ -120,21 +139,31 @@ export async function ensureDbReady() {
     );
   `);
 
-  // Seed default categories safely even if init runs more than once.
-  for (const c of DEFAULT_CATEGORIES) {
-    await db.runAsync(
-      "INSERT OR IGNORE INTO categories (id, name, icon, color, budget_monthly) VALUES (?, ?, ?, ?, ?)",
-      c.id,
-      c.name,
-      c.icon,
-      c.color,
-      c.budget_monthly
+  await db.execAsync(`
+    CREATE TABLE IF NOT EXISTS pending_transaction_deletions (
+      id TEXT PRIMARY KEY,
+      created_at TEXT NOT NULL
     );
+  `);
+
+  const categorySeeded = await getSetting(CATEGORY_SEED_KEY);
+  if (categorySeeded !== "1") {
+    for (const c of DEFAULT_CATEGORIES) {
+      await db.runAsync(
+        "INSERT OR IGNORE INTO categories (id, name, icon, color, budget_monthly) VALUES (?, ?, ?, ?, ?)",
+        c.id,
+        c.name,
+        c.icon,
+        c.color,
+        c.budget_monthly
+      );
+    }
+    await setSetting(CATEGORY_SEED_KEY, "1");
   }
 
   const countRow = (await db.getFirstAsync("SELECT COUNT(*) AS count FROM transactions WHERE source = 'demo'")) as { count?: number } | null;
   const seedVersion = await getSetting(MOCK_SEED_KEY);
-  if ((countRow?.count ?? 0) === 0 && seedVersion !== MOCK_SEED_VERSION) {
+  if (SHOULD_SEED_DEMO && (countRow?.count ?? 0) === 0 && seedVersion !== MOCK_SEED_VERSION) {
     await db.execAsync("BEGIN;");
     try {
       for (const tx of MOCK_TRANSACTIONS) {
@@ -177,6 +206,7 @@ export type DbTransactionRow = {
   created_at: string | null;
   raw_text: string | null;
   source: string | null;
+  receipt_id?: string | null;
   synced: number | null;
 };
 
@@ -218,8 +248,8 @@ export async function insertTransaction(row: DbTransactionRow) {
   }
   const db = await getDb();
   await db.runAsync(
-    `INSERT INTO transactions (id, amount, category, merchant, date, note, created_at, raw_text, source, synced)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO transactions (id, amount, category, merchant, date, note, created_at, raw_text, source, receipt_id, synced)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     row.id,
     row.amount,
     row.category,
@@ -229,6 +259,7 @@ export async function insertTransaction(row: DbTransactionRow) {
     row.created_at,
     row.raw_text,
     row.source,
+    row.receipt_id ?? null,
     row.synced ?? 0
   );
 }
@@ -244,8 +275,8 @@ export async function upsertTransaction(row: DbTransactionRow) {
   }
   const db = await getDb();
   await db.runAsync(
-    `INSERT INTO transactions (id, amount, category, merchant, date, note, created_at, raw_text, source, synced)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `INSERT INTO transactions (id, amount, category, merchant, date, note, created_at, raw_text, source, receipt_id, synced)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(id) DO UPDATE SET
        amount=excluded.amount,
        category=excluded.category,
@@ -255,6 +286,7 @@ export async function upsertTransaction(row: DbTransactionRow) {
        created_at=excluded.created_at,
        raw_text=excluded.raw_text,
        source=excluded.source,
+       receipt_id=excluded.receipt_id,
        synced=excluded.synced`,
     row.id,
     row.amount,
@@ -265,6 +297,7 @@ export async function upsertTransaction(row: DbTransactionRow) {
     row.created_at,
     row.raw_text,
     row.source,
+    row.receipt_id ?? null,
     row.synced ?? 0
   );
 }
@@ -303,10 +336,55 @@ export async function deleteTransaction(id: string) {
       WEB_KEYS.transactions,
       rows.filter((r) => r.id !== id)
     );
+    const settings = webReadJson<Record<string, string>>(WEB_KEYS.settings, {});
+    webWriteJson(WEB_KEYS.settings, { ...(settings ?? {}), [CATEGORY_SEED_KEY]: "1" });
     return;
   }
   const db = await getDb();
   await db.runAsync("DELETE FROM transactions WHERE id = ?", id);
+}
+
+export async function queueTransactionDeletion(id: string) {
+  const nowIso = new Date().toISOString();
+  if (Platform.OS === "web") {
+    const rows = webReadJson<Array<{ id: string; created_at: string }>>(WEB_KEYS.transactionDeletes, []);
+    if (!rows.some((row) => row.id === id)) rows.push({ id, created_at: nowIso });
+    webWriteJson(WEB_KEYS.transactionDeletes, rows);
+    return;
+  }
+  const db = await getDb();
+  await db.runAsync(
+    `INSERT INTO pending_transaction_deletions (id, created_at)
+     VALUES (?, ?)
+     ON CONFLICT(id) DO UPDATE SET created_at=excluded.created_at`,
+    id,
+    nowIso
+  );
+}
+
+export async function listPendingTransactionDeletions(): Promise<string[]> {
+  if (Platform.OS === "web") {
+    return webReadJson<Array<{ id: string; created_at: string }>>(WEB_KEYS.transactionDeletes, []).map((row) => row.id);
+  }
+  const db = await getDb();
+  const rows = (await db.getAllAsync("SELECT id FROM pending_transaction_deletions")) as Array<{ id: string }>;
+  return rows.map((row) => row.id);
+}
+
+export async function clearPendingTransactionDeletions(ids: string[]) {
+  if (ids.length === 0) return;
+  if (Platform.OS === "web") {
+    const idSet = new Set(ids);
+    const rows = webReadJson<Array<{ id: string; created_at: string }>>(WEB_KEYS.transactionDeletes, []);
+    webWriteJson(
+      WEB_KEYS.transactionDeletes,
+      rows.filter((row) => !idSet.has(row.id))
+    );
+    return;
+  }
+  const db = await getDb();
+  const placeholders = ids.map(() => "?").join(",");
+  await db.runAsync(`DELETE FROM pending_transaction_deletions WHERE id IN (${placeholders})`, ...ids);
 }
 
 export type DbCategoryRow = {
@@ -368,6 +446,7 @@ export async function deleteCategory(id: string) {
 
 export async function restoreDefaultCategories() {
   if (Platform.OS === "web") {
+    const settings = webReadJson<Record<string, string>>(WEB_KEYS.settings, {});
     webWriteJson(
       WEB_KEYS.categories,
       DEFAULT_CATEGORIES.map((c) => ({
@@ -378,6 +457,7 @@ export async function restoreDefaultCategories() {
         budget_monthly: c.budget_monthly,
       } satisfies DbCategoryRow))
     );
+    webWriteJson(WEB_KEYS.settings, { ...(settings ?? {}), [CATEGORY_SEED_KEY]: "1" });
     return;
   }
   const db = await getDb();
@@ -392,6 +472,7 @@ export async function restoreDefaultCategories() {
       c.budget_monthly
     );
   }
+  await setSetting(CATEGORY_SEED_KEY, "1");
 }
 
 export async function getSetting(key: string): Promise<string | null> {
@@ -423,6 +504,15 @@ export async function setSetting(key: string, value: string) {
   );
 }
 
+export async function listSettings(): Promise<Array<{ key: string; value: string | null }>> {
+  if (Platform.OS === "web") {
+    const settings = webReadJson<Record<string, string>>(WEB_KEYS.settings, {});
+    return Object.entries(settings).map(([key, value]) => ({ key, value }));
+  }
+  const db = await getDb();
+  return (await db.getAllAsync("SELECT key, value FROM app_settings")) as Array<{ key: string; value: string | null }>;
+}
+
 export async function resetLocalDatabase() {
   if (Platform.OS === "web") {
     webWriteJson(WEB_KEYS.transactions, []);
@@ -436,13 +526,15 @@ export async function resetLocalDatabase() {
         budget_monthly: c.budget_monthly,
       } satisfies DbCategoryRow))
     );
-    webWriteJson(WEB_KEYS.settings, {});
+    webWriteJson(WEB_KEYS.settings, { [CATEGORY_SEED_KEY]: "1" });
+    webWriteJson(WEB_KEYS.transactionDeletes, []);
     return;
   }
   const db = await getDb();
   await db.execAsync("BEGIN;");
   try {
     await db.execAsync("DELETE FROM transactions;");
+    await db.execAsync("DELETE FROM pending_transaction_deletions;");
     await db.execAsync("DELETE FROM categories;");
     await db.execAsync("DELETE FROM app_settings;");
     await db.execAsync("COMMIT;");
@@ -461,4 +553,5 @@ export async function resetLocalDatabase() {
       c.budget_monthly
     );
   }
+  await setSetting(CATEGORY_SEED_KEY, "1");
 }

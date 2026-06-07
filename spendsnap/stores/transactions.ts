@@ -5,10 +5,11 @@ import {
   insertTransaction,
   listTransactions,
   deleteTransaction as deleteDbTransaction,
+  queueTransactionDeletion,
   upsertTransaction,
   resetLocalDatabase,
 } from "../services/db";
-import { syncTransactionsToSupabaseIfEnabled } from "../services/sync";
+import { deleteTransactionFromSupabaseIfEnabled, syncTransactionsToSupabaseIfEnabled } from "../services/sync";
 import { uuid } from "../utils/uuid";
 
 export type Transaction = {
@@ -21,6 +22,7 @@ export type Transaction = {
   created_at: string;
   raw_text?: string | null;
   source?: string | null;
+  receipt_id?: string | null;
   synced?: number | null;
 };
 
@@ -32,6 +34,7 @@ type Draft = {
   note?: string;
   raw_text?: string;
   source?: string;
+  receipt_id?: string | null;
 };
 
 type State = {
@@ -62,6 +65,7 @@ export const useTransactionsStore = create<State>((set, get) => ({
         created_at: row.created_at ?? new Date().toISOString(),
         raw_text: row.raw_text,
         source: row.source,
+        receipt_id: row.receipt_id,
         synced: row.synced,
       })),
     });
@@ -84,6 +88,7 @@ export const useTransactionsStore = create<State>((set, get) => ({
       created_at: nowIso,
       raw_text: draft.raw_text ?? null,
       source: draft.source ?? "manual_text",
+      receipt_id: draft.receipt_id ?? null,
       synced: 0,
     };
     await insertTransaction(tx);
@@ -107,6 +112,7 @@ export const useTransactionsStore = create<State>((set, get) => ({
       created_at: draft.created_at ?? existing?.created_at ?? nowIso,
       raw_text: draft.raw_text ?? null,
       source: draft.source ?? existing?.source ?? "manual_text",
+      receipt_id: draft.receipt_id ?? existing?.receipt_id ?? null,
       synced: 0,
     };
     await upsertTransaction(tx);
@@ -115,8 +121,12 @@ export const useTransactionsStore = create<State>((set, get) => ({
 
   deleteTransaction: async (id) => {
     await ensureDbReady();
+    await queueTransactionDeletion(id);
     await deleteDbTransaction(id);
     await get().refreshAll();
+    void deleteTransactionFromSupabaseIfEnabled(id).catch((error) => {
+      console.warn("Background Supabase delete failed:", error);
+    });
   },
 
   seedDummyTransactions: (transactions) => {

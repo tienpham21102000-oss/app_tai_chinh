@@ -10,6 +10,7 @@ import { isSameLocalDay } from "../../utils/dates";
 import { formatMoneyVnd } from "../../utils/money";
 import { useI18n, type I18nKey } from "../../utils/i18n";
 import { DEFAULT_BUDGET, getBudgetForMonth } from "../../utils/budget";
+import { categoryBgClass, categoryEmoji, categoryLabel } from "../../utils/categories";
 
 const PET_LEVEL_KEY = "pet_level";
 const PET_LAST_DATE_KEY = "pet_last_date";
@@ -53,7 +54,7 @@ function getCategoryBg(category?: string | null): string {
 export default function HomeScreen() {
   const { transactions, refreshToday } = useTransactionsStore();
   const setAddIntent = useAddIntentStore((s) => s.setIntent);
-  const { t } = useI18n();
+  const { t, language } = useI18n();
   const [now] = useState(() => new Date());
   const [monthlyBudget, setMonthlyBudget] = useState<number>(DEFAULT_BUDGET);
 
@@ -86,7 +87,8 @@ export default function HomeScreen() {
       (async () => {
         try {
           await ensureDbReady();
-          const [budgetValue, levelStr, lastDate] = await Promise.all([
+          const [, budgetValue, levelStr, lastDate] = await Promise.all([
+            refreshToday(),
             getBudgetForMonth(new Date()),
             getSetting(PET_LEVEL_KEY),
             getSetting(PET_LAST_DATE_KEY),
@@ -101,7 +103,7 @@ export default function HomeScreen() {
         }
       })();
       return () => { active = false; };
-    }, [])
+    }, [refreshToday])
   );
 
   // ─── Computed values ──────────────────────────────────────────────────────
@@ -644,15 +646,15 @@ export default function HomeScreen() {
             className="mb-3 flex-row items-center justify-between rounded-3xl border border-slate-100 bg-white p-4 shadow-sm active:opacity-75"
           >
             <View className="flex-row items-center gap-3.5 flex-1">
-              <View className={`w-12 h-12 rounded-2xl items-center justify-center ${getCategoryBg(item.category)}`}>
-                <Text className="text-2xl">{getCategoryEmoji(item.category)}</Text>
+              <View className={`w-12 h-12 rounded-2xl items-center justify-center ${categoryBgClass(item.category)}`}>
+                <Text className="text-2xl">{categoryEmoji(item.category)}</Text>
               </View>
               <View className="flex-1">
                 <Text className="text-sm font-black text-slate-800" numberOfLines={1}>
                   {item.merchant ?? "Unspecified Merchant"}
                 </Text>
                 <Text className="text-[10px] text-slate-400 mt-0.5 font-bold uppercase tracking-wider">
-                  {item.category ?? "Uncategorized"}
+                  {item.category ? categoryLabel(item.category, language) : t("uncategorized")}
                 </Text>
               </View>
             </View>

@@ -10,6 +10,7 @@ import { useI18n } from "../../utils/i18n";
 import { formatMoneyVnd } from "../../utils/money";
 import { generateYearOfSpending } from "../../utils/simulate";
 import { DEFAULT_BUDGET, getBudgetForMonth, monthLabel } from "../../utils/budget";
+import { CANONICAL_CATEGORIES, categoryEmoji, categoryLabel as getCategoryLabel, normalizeCategoryName } from "../../utils/categories";
 
 
 function getCategoryEmoji(category: string): string {
@@ -34,7 +35,18 @@ function getCategoryBg(category: string): string {
   return "bg-slate-100";
 }
 
-const CATEGORY_ORDER = ["Food", "Drinks", "Travel", "Shopping", "Entertainment", "Bills", "Others"] as const;
+function getCanonicalCategoryBg(category: string): string {
+  const normalized = normalizeCategoryName(category);
+  if (normalized === "Food") return "bg-orange-50";
+  if (normalized === "Drinks") return "bg-amber-50";
+  if (normalized === "Travel") return "bg-sky-50";
+  if (normalized === "Shopping") return "bg-purple-50";
+  if (normalized === "Entertainment") return "bg-rose-50";
+  if (normalized === "Bills") return "bg-emerald-50";
+  return "bg-slate-100";
+}
+
+const CATEGORY_ORDER = CANONICAL_CATEGORIES;
 const CATEGORY_HEX_COLORS: Record<string, string> = {
   Food: "#f97316", Drinks: "#d97706", Travel: "#0ea5e9",
   Shopping: "#a855f7", Entertainment: "#f43f5e", Bills: "#10b981", Others: "#94a3b8",
@@ -203,7 +215,7 @@ export default function AnalyticsScreen() {
     monthlyTransactions.forEach((t) => {
       const k = safeDateKey(t.date ?? t.created_at);
       if (!k || !dm[k]) return;
-      dm[k][normalizeCategory(t.category || "Others")] += t.amount;
+      dm[k][normalizeCategoryName(t.category || "Others")] += t.amount;
     });
     return dm;
   }, [monthlyTransactions, selectedMonth]);
@@ -244,7 +256,7 @@ export default function AnalyticsScreen() {
       const d = new Date(t.date ?? t.created_at ?? "");
       const k = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
       if (!mm[k]) return;
-      mm[k][normalizeCategory(t.category || "Others")] += t.amount;
+      mm[k][normalizeCategoryName(t.category || "Others")] += t.amount;
     });
     return mm;
   }, [yearlyTransactions, selectedYear]);
@@ -253,7 +265,7 @@ export default function AnalyticsScreen() {
   const categorySummary = useMemo(() => {
     const mp: Record<string, number> = {}; let tot = 0;
     const src = viewMode === "month" ? monthlyTransactions : yearlyTransactions;
-    src.forEach((t) => { const c = normalizeCategory(t.category || "Other"); mp[c] = (mp[c] || 0) + t.amount; tot += t.amount; });
+    src.forEach((t) => { const c = normalizeCategoryName(t.category || "Others"); mp[c] = (mp[c] || 0) + t.amount; tot += t.amount; });
     const lst = Object.keys(mp).map((n) => ({ name: n, amount: mp[n], percentage: tot > 0 ? Math.round((mp[n] / tot) * 100) : 0 }));
     lst.sort((a, b) => b.amount - a.amount);
     return { list: lst, total: tot };
@@ -277,7 +289,7 @@ export default function AnalyticsScreen() {
 
   const handleSeedDemoData = () => { setIsSeeding(true); try { seedDummyTransactions(generateYearOfSpending()); } finally { setIsSeeding(false); } };
   useEffect(() => { void refreshAll(); }, [refreshAll]);
-  useFocusEffect(useCallback(() => { let active = true; (async () => { try { await ensureDbReady(); const n = await getBudgetForMonth(selectedMonth); if (!active) return; setMonthlyBudget(n); } catch {} })(); return () => { active = false; }; }, [selectedMonth]));
+  useFocusEffect(useCallback(() => { let active = true; (async () => { try { await ensureDbReady(); await refreshAll(); const n = await getBudgetForMonth(selectedMonth); if (!active) return; setMonthlyBudget(n); } catch {} })(); return () => { active = false; }; }, [refreshAll, selectedMonth]));
 
   const maxWeeks = calendarWeeks.length;
   const LINE_H = 150;
@@ -470,7 +482,7 @@ export default function AnalyticsScreen() {
                           textDecorationLine: active ? "none" : "line-through",
                         }}
                       >
-                        {categoryLabel(cat, t)}
+                        {getCategoryLabel(cat, language)}
                       </Text>
                     </Pressable>
                   );
@@ -523,7 +535,7 @@ export default function AnalyticsScreen() {
                         p.amount > 0 ? (
                           <Pressable
                             key={`marker-${i}`}
-                            onPress={() => startTransition(() => setTooltip({ x: p.x, y: p.y, text: `${categoryLabel(cat, t)}: ${formatMoneyVnd(p.amount)}` }))}
+                            onPress={() => startTransition(() => setTooltip({ x: p.x, y: p.y, text: `${getCategoryLabel(cat, language)}: ${formatMoneyVnd(p.amount)}` }))}
                             style={{ position: "absolute", left: p.x - 4, top: p.y - 4, width: 8, height: 8, borderRadius: 4, backgroundColor: color, borderWidth: 1, borderColor: "white", zIndex: 10 }}
                           />
                         ) : null
@@ -583,7 +595,7 @@ export default function AnalyticsScreen() {
                           textDecorationLine: active ? "none" : "line-through",
                         }}
                       >
-                        {categoryLabel(cat, t)}
+                        {getCategoryLabel(cat, language)}
                       </Text>
                     </Pressable>
                   );
@@ -619,8 +631,8 @@ export default function AnalyticsScreen() {
                 <View key={c.name} className="mb-5 last:mb-0">
                   <View className="flex-row justify-between items-center mb-2">
                     <View className="flex-row items-center gap-2.5">
-                      <View className={`w-9 h-9 rounded-xl items-center justify-center ${getCategoryBg(c.name)}`}><Text className="text-lg">{getCategoryEmoji(c.name)}</Text></View>
-                      <View><Text className="text-xs font-black text-slate-800 uppercase tracking-wide">{categoryLabel(c.name, t)}</Text><Text className="text-[9px] text-slate-400">{c.percentage}% {t("spent")}</Text></View>
+                      <View className={`w-9 h-9 rounded-xl items-center justify-center ${getCanonicalCategoryBg(c.name)}`}><Text className="text-lg">{categoryEmoji(c.name)}</Text></View>
+                      <View><Text className="text-xs font-black text-slate-800 uppercase tracking-wide">{getCategoryLabel(c.name, language)}</Text><Text className="text-[9px] text-slate-400">{c.percentage}% {t("spent")}</Text></View>
                     </View>
                     <Text className="text-xs font-black text-slate-800">{formatMoneyVnd(ct)}</Text>
                   </View>
@@ -655,7 +667,7 @@ export default function AnalyticsScreen() {
             total={categorySummary.total}
             totalLabel={t("totalYearSpending")}
             spentLabel={t("spent")}
-            labelForCategory={(category) => categoryLabel(category, t)}
+            labelForCategory={(category) => getCategoryLabel(category, language)}
           />
           {false && (() => {
             const mx = Math.max(...categorySummary.list.map((c) => c.amount), 1);
@@ -666,7 +678,7 @@ export default function AnalyticsScreen() {
                 <View key={c.name} className="mb-4 last:mb-0">
                   <View className="flex-row justify-between items-center mb-2">
                     <View className="flex-row items-center gap-2.5">
-                      <View className={`w-9 h-9 rounded-xl items-center justify-center ${getCategoryBg(c.name)}`}><Text className="text-lg">{getCategoryEmoji(c.name)}</Text></View>
+                      <View className={`w-9 h-9 rounded-xl items-center justify-center ${getCanonicalCategoryBg(c.name)}`}><Text className="text-lg">{categoryEmoji(c.name)}</Text></View>
                       <View><Text className="text-xs font-black text-slate-800 uppercase tracking-wide">{c.name}</Text><Text className="text-[9px] text-slate-400">{c.percentage}% tổng chi tiêu năm {selectedYear}</Text></View>
                     </View>
                     <Text className="text-xs font-black text-slate-800">{formatMoneyVnd(c.amount)}</Text>
@@ -694,7 +706,7 @@ export default function AnalyticsScreen() {
             {mainExpenseCategory ? (
               <Text className="text-xs text-slate-300 mt-1.5 leading-relaxed">
                 {t("yearlyInsightPrefix")}{" "}
-                <Text className="font-black text-indigo-300 uppercase">{categoryLabel(mainExpenseCategory.name, t)}</Text>{" "}
+                <Text className="font-black text-indigo-300 uppercase">{getCategoryLabel(mainExpenseCategory.name, language)}</Text>{" "}
                 {viewMode === "month"
                   ? language === "vi"
                     ? `trong tháng ${selectedMonth.toLocaleDateString("vi-VN", { month: "long", year: "numeric" })}`
@@ -768,7 +780,7 @@ export default function AnalyticsScreen() {
                   return (
                     <Pressable key={cat} onPress={() => toggleCategory(cat)} className="flex-row items-center gap-1.5 px-2 py-1 rounded-full active:opacity-60" style={{ backgroundColor: active ? CATEGORY_HEX_COLORS[cat] + "18" : "#f1f5f9", borderWidth: 1, borderColor: active ? CATEGORY_HEX_COLORS[cat] + "60" : "#e2e8f0" }}>
                       <View style={{ width: 10, height: 10, borderRadius: 2, backgroundColor: active ? CATEGORY_HEX_COLORS[cat] : "#cbd5e1" }} />
-                      <Text style={{ fontSize: 9, fontWeight: "700", color: active ? CATEGORY_HEX_COLORS[cat] : "#94a3b8", textDecorationLine: active ? "none" : "line-through" }}>{categoryLabel(cat, t)}</Text>
+                      <Text style={{ fontSize: 9, fontWeight: "700", color: active ? CATEGORY_HEX_COLORS[cat] : "#94a3b8", textDecorationLine: active ? "none" : "line-through" }}>{getCategoryLabel(cat, language)}</Text>
                     </Pressable>
                   );
                 })}
@@ -805,7 +817,7 @@ export default function AnalyticsScreen() {
                         return <View key={`l-bottom-${cat}-${i}`} style={{ position: "absolute", left: pr.x, top: pr.y, width: len, height: 1.5, backgroundColor: color, transform: [{ rotate: `${ang}deg` }], transformOrigin: "left center" }} />;
                       })}
                       {pts.map((p, i) => p.amount > 0 ? (
-                        <Pressable key={`marker-bottom-${cat}-${i}`} onPress={() => startTransition(() => setTooltip({ x: p.x, y: p.y, text: `${categoryLabel(cat, t)}: ${formatMoneyVnd(p.amount)}` }))} style={{ position: "absolute", left: p.x - 4, top: p.y - 4, width: 8, height: 8, borderRadius: 4, backgroundColor: color, borderWidth: 1, borderColor: "white", zIndex: 10 }} />
+                        <Pressable key={`marker-bottom-${cat}-${i}`} onPress={() => startTransition(() => setTooltip({ x: p.x, y: p.y, text: `${getCategoryLabel(cat, language)}: ${formatMoneyVnd(p.amount)}` }))} style={{ position: "absolute", left: p.x - 4, top: p.y - 4, width: 8, height: 8, borderRadius: 4, backgroundColor: color, borderWidth: 1, borderColor: "white", zIndex: 10 }} />
                       ) : null)}
                     </View>
                   );
@@ -858,7 +870,7 @@ export default function AnalyticsScreen() {
                           textDecorationLine: active ? "none" : "line-through",
                         }}
                       >
-                        {categoryLabel(cat, t)}
+                        {getCategoryLabel(cat, language)}
                       </Text>
                     </Pressable>
                   );

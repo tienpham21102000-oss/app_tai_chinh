@@ -1,24 +1,31 @@
-import { ScrollView, Text, View, Pressable, Switch, Alert, Modal, TextInput } from "react-native";
+﻿import { ScrollView, Text, View, Pressable, Switch, Alert, Modal, TextInput } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useCallback, useState } from "react";
 import { router, useFocusEffect } from "expo-router";
 
 import { ensureDbReady, getSetting, setSetting } from "../../services/db";
 import { isSupabaseConfigured } from "../../services/supabase";
-import { syncTransactionsToSupabase } from "../../services/sync";
+import { syncTransactionsToSupabase, syncTransactionsToSupabaseIfEnabled } from "../../services/sync";
+import { useAuthStore } from "../../stores/auth";
 import { useTransactionsStore } from "../../stores/transactions";
 import { usePreferencesStore } from "../../stores/preferences";
+import { cancelDailyReminder, scheduleDailyReminder } from "../../services/reminders";
 import { useI18n } from "../../utils/i18n";
 import { formatMoneyVnd } from "../../utils/money";
 import { DEFAULT_BUDGET, getBudgetForMonth } from "../../utils/budget";
 
 const SYNC_ENABLED_KEY = "supabase_sync_enabled";
+const DAILY_REMINDER_ENABLED_KEY = "daily_reminder_enabled";
+const DAILY_REMINDER_TIME_KEY = "daily_reminder_time";
 
 export default function SettingsScreen() {
   const { t, language } = useI18n();
   const setLanguage = usePreferencesStore((s) => s.setLanguage);
+  const user = useAuthStore((s) => s.user);
+  const signOut = useAuthStore((s) => s.signOut);
   const [syncEnabled, setSyncEnabled] = useState(false);
   const [notifyEnabled, setNotifyEnabled] = useState(true);
+  const [reminderTime, setReminderTime] = useState("20:00");
   const resetAll = useTransactionsStore((s) => s.resetAll);
   const [monthlyBudget, setMonthlyBudget] = useState<number>(DEFAULT_BUDGET);
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
@@ -32,9 +39,13 @@ export default function SettingsScreen() {
           await ensureDbReady();
           const n = await getBudgetForMonth(new Date());
           const sync = await getSetting(SYNC_ENABLED_KEY);
+          const notify = await getSetting(DAILY_REMINDER_ENABLED_KEY);
+          const time = await getSetting(DAILY_REMINDER_TIME_KEY);
           if (!active) return;
           setMonthlyBudget(n);
-          setSyncEnabled(sync === "1");
+          setSyncEnabled(sync !== "0" && isSupabaseConfigured());
+          setNotifyEnabled(notify !== "0");
+          setReminderTime(time || "20:00");
         } catch {
           // ignore
         }
@@ -76,7 +87,7 @@ export default function SettingsScreen() {
 
   const confirmResetData = async () => {
     const normalized = resetConfirmText.trim().toLowerCase();
-    if (normalized !== "đồng ý" && normalized !== "dong y" && normalized !== "yes") {
+    if (language === "vi" ? normalized !== "đồng ý" : normalized !== "yes") {
       Alert.alert(t("resetFailed"), t("resetDatabaseWrong"));
       return;
     }
@@ -96,6 +107,52 @@ export default function SettingsScreen() {
     } catch (e) {
       Alert.alert("Navigation Error", "Cannot open this screen.");
     }
+  };
+
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+      router.replace("/auth");
+    } catch (e) {
+      Alert.alert(language === "vi" ? "Đăng xuất thất bại" : "Sign out failed", e instanceof Error ? e.message : "Unknown error");
+    }
+  };
+
+  const handleReminderEnabledChange = async (next: boolean) => {
+    setNotifyEnabled(next);
+    await ensureDbReady();
+    await setSetting(DAILY_REMINDER_ENABLED_KEY, next ? "1" : "0");
+    if (next) {
+      await scheduleDailyReminder(reminderTime, language);
+    } else {
+      await cancelDailyReminder();
+    }
+    void syncTransactionsToSupabaseIfEnabled().catch((error) => {
+      console.warn("Background reminder sync failed:", error);
+    });
+  };
+
+  const handleReminderTimeChange = async (value: string) => {
+    const cleaned = value.replace(/[^\d:]/g, "").slice(0, 5);
+    setReminderTime(cleaned);
+    if (/^\d{2}:\d{2}$/.test(cleaned)) {
+      const [hour, minute] = cleaned.split(":").map(Number);
+      if (hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) {
+        await ensureDbReady();
+        await setSetting(DAILY_REMINDER_TIME_KEY, cleaned);
+        if (notifyEnabled) await scheduleDailyReminder(cleaned, language);
+        void syncTransactionsToSupabaseIfEnabled().catch((error) => {
+          console.warn("Background reminder time sync failed:", error);
+        });
+      }
+    }
+  };
+
+  const handleLanguageChange = async (nextLanguage: "vi" | "en") => {
+    await setLanguage(nextLanguage);
+    void syncTransactionsToSupabaseIfEnabled().catch((error) => {
+      console.warn("Background settings sync failed:", error);
+    });
   };
 
   return (
@@ -139,14 +196,14 @@ export default function SettingsScreen() {
           <Text className="text-white text-xl font-bold">U</Text>
         </View>
         <View className="ml-4 flex-1">
-          <Text className="text-base font-bold text-slate-800">User Account</Text>
-          <Text className="text-xs text-slate-400 font-semibold">Tier: SpendSnap Pro 🚀</Text>
+          <Text className="text-base font-bold text-slate-800">{user?.email ?? "User Account"}</Text>
+          <Text className="text-xs text-slate-400 font-semibold">Tier: SpendSnap Pro</Text>
         </View>
         <Pressable
-          onPress={() => Alert.alert("Coming soon", t("profileComingSoon"))}
+          onPress={() => void handleSignOut()}
           className="bg-indigo-50 px-3.5 py-2 rounded-2xl active:scale-95"
         >
-          <Text className="text-xs font-bold text-indigo-600">{t("edit")}</Text>
+          <Text className="text-xs font-bold text-indigo-600">{language === "vi" ? "Đăng xuất" : "Sign out"}</Text>
         </Pressable>
       </View>
 
@@ -165,7 +222,7 @@ export default function SettingsScreen() {
           </View>
           <View className="flex-row gap-2">
             <Pressable
-              onPress={() => void setLanguage("vi")}
+              onPress={() => void handleLanguageChange("vi")}
               className={`flex-1 rounded-2xl px-3 py-3 items-center ${language === "vi" ? "bg-indigo-600" : "bg-slate-50"}`}
             >
               <Text className={language === "vi" ? "text-white text-xs font-black" : "text-slate-600 text-xs font-black"}>
@@ -173,7 +230,7 @@ export default function SettingsScreen() {
               </Text>
             </Pressable>
             <Pressable
-              onPress={() => void setLanguage("en")}
+              onPress={() => void handleLanguageChange("en")}
               className={`flex-1 rounded-2xl px-3 py-3 items-center ${language === "en" ? "bg-indigo-600" : "bg-slate-50"}`}
             >
               <Text className={language === "en" ? "text-white text-xs font-black" : "text-slate-600 text-xs font-black"}>
@@ -214,11 +271,33 @@ export default function SettingsScreen() {
           </View>
           <Switch
             value={notifyEnabled}
-            onValueChange={setNotifyEnabled}
+            onValueChange={(next) => void handleReminderEnabledChange(next)}
             trackColor={{ false: "#e2e8f0", true: "#818cf8" }}
             thumbColor={notifyEnabled ? "#6366f1" : "#f4f4f5"}
           />
         </View>
+
+        {notifyEnabled ? (
+          <View className="flex-row items-center justify-between px-5 py-4 border-b border-slate-50">
+            <View className="flex-row items-center gap-3.5">
+              <View className="w-9 h-9 rounded-xl bg-violet-50 items-center justify-center">
+                <Ionicons name="time-outline" size={18} color="#7c3aed" />
+              </View>
+              <View>
+                <Text className="text-sm font-bold text-slate-800">{language === "vi" ? "Giờ nhắc" : "Reminder time"}</Text>
+                <Text className="text-[10px] text-slate-400 font-medium">{language === "vi" ? "Định dạng 24 giờ, ví dụ 20:00" : "24-hour format, e.g. 20:00"}</Text>
+              </View>
+            </View>
+            <TextInput
+              value={reminderTime}
+              onChangeText={(value) => void handleReminderTimeChange(value)}
+              keyboardType="numbers-and-punctuation"
+              placeholder="20:00"
+              placeholderTextColor="#94a3b8"
+              className="w-20 rounded-2xl border border-slate-100 bg-slate-50 px-3 py-2 text-center text-sm font-black text-slate-800"
+            />
+          </View>
+        ) : null}
 
         {/* Currency Setting */}
         <View className="flex-row items-center justify-between px-5 py-4 border-b border-slate-50">
@@ -246,7 +325,7 @@ export default function SettingsScreen() {
             <View>
               <Text className="text-sm font-bold text-slate-800">{t("monthlyBudgetGoal")}</Text>
               <Text className="text-[10px] text-slate-400 font-medium">
-                {language === "vi" ? "Đang đặt" : "Set to"}: {formatMoneyVnd(monthlyBudget)}
+                {language === "vi" ? "Dang dat" : "Set to"}: {formatMoneyVnd(monthlyBudget)}
               </Text>
             </View>
           </View>
@@ -304,7 +383,7 @@ export default function SettingsScreen() {
       {/* App Info footer */}
       <View className="items-center mt-4 mb-16">
       <Text className="text-[10px] font-bold text-slate-300 uppercase tracking-widest">SpendSnap v1.0.0</Text>
-        <Text className="text-[9px] text-slate-400 font-medium mt-1">Made with ❤️ by Google Deepmind AI Team</Text>
+        <Text className="text-[9px] text-slate-400 font-medium mt-1">Made for SpendSnap</Text>
       </View>
     </ScrollView>
   );

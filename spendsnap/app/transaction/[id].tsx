@@ -7,6 +7,7 @@ import { useTransactionsStore } from "../../stores/transactions";
 import { useAddIntentStore } from "../../stores/addIntent";
 import { formatMoneyVnd } from "../../utils/money";
 import { useI18n, type I18nKey } from "../../utils/i18n";
+import { categoryEmoji, categoryLabel } from "../../utils/categories";
 
 function getCategoryEmoji(category?: string | null): string {
   const c = (category ?? "").toLowerCase();
@@ -149,11 +150,11 @@ export default function TransactionModal() {
         {/* Top category emoji block */}
         <View className="items-center mb-4">
           <View className="w-16 h-16 rounded-3xl bg-indigo-50 items-center justify-center mb-3">
-            <Text className="text-4xl">{getCategoryEmoji(tx.category)}</Text>
+            <Text className="text-4xl">{categoryEmoji(tx.category)}</Text>
           </View>
           <Text className="text-xl font-black text-slate-800 text-center">{title}</Text>
           <Text className="text-xs font-semibold text-slate-400 mt-1 uppercase tracking-wider">
-            {tx.category ?? t("uncategorized")}
+            {tx.category ? categoryLabel(tx.category, language) : t("uncategorized")}
           </Text>
         </View>
 

@@ -101,7 +101,7 @@ export default function ButtonDebugScreen() {
       setResults((prev) => [...prev, result]);
       buttonDebugger.recordTest(result);
     } catch (error) {
-      Alert.alert("Quick Type Test Error", error instanceof Error ? error.message : String(error));
+      Alert.alert("AI Note Test Error", error instanceof Error ? error.message : String(error));
     } finally {
       setLoading(false);
     }
@@ -267,7 +267,7 @@ export default function ButtonDebugScreen() {
           ) : (
             <Ionicons name="camera" size={20} color="#059669" />
           )}
-          <Text className="text-sm font-bold text-slate-800 flex-1">Test Scan Bill Button</Text>
+          <Text className="text-sm font-bold text-slate-800 flex-1">Test AI Camera Button</Text>
           <Ionicons name="arrow-forward" size={16} color="#94a3b8" />
         </Pressable>
 
@@ -281,7 +281,7 @@ export default function ButtonDebugScreen() {
           ) : (
             <Ionicons name="create" size={20} color="#7c3aed" />
           )}
-          <Text className="text-sm font-bold text-slate-800 flex-1">Test Quick Type Button</Text>
+          <Text className="text-sm font-bold text-slate-800 flex-1">Test AI Note Button</Text>
           <Ionicons name="arrow-forward" size={16} color="#94a3b8" />
         </Pressable>
 

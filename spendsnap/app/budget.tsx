@@ -4,6 +4,7 @@ import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 
 import { ensureDbReady, setSetting } from "../services/db";
+import { syncTransactionsToSupabaseIfEnabled } from "../services/sync";
 import { useI18n } from "../utils/i18n";
 import { formatMoneyVnd, parseMoneyToVnd } from "../utils/money";
 import { DEFAULT_BUDGET, LEGACY_BUDGET_KEY, getBudgetForMonth, isPastBudgetMonth, monthBudgetKey, monthLabel } from "../utils/budget";
@@ -40,9 +41,16 @@ export default function BudgetModal() {
     try {
       await ensureDbReady();
       await setSetting(monthBudgetKey(selectedMonth), String(budgetValue));
-      if (!isPastBudgetMonth(selectedMonth) && selectedMonth.getMonth() === new Date().getMonth() && selectedMonth.getFullYear() === new Date().getFullYear()) {
+      if (
+        !isPastBudgetMonth(selectedMonth) &&
+        selectedMonth.getMonth() === new Date().getMonth() &&
+        selectedMonth.getFullYear() === new Date().getFullYear()
+      ) {
         await setSetting(LEGACY_BUDGET_KEY, String(budgetValue));
       }
+      void syncTransactionsToSupabaseIfEnabled().catch((error) => {
+        console.warn("Background budget sync failed:", error);
+      });
       router.dismissTo("/");
     } catch (e) {
       Alert.alert("Save failed", e instanceof Error ? e.message : "Unknown error");

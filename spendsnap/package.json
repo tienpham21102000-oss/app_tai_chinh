@@ -6,7 +6,16 @@
     "start": "expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "typecheck": "tsc --noEmit",
+    "doctor": "powershell -ExecutionPolicy Bypass -File ./scripts/deploy-check.ps1",
+    "doctor:fast": "powershell -ExecutionPolicy Bypass -File ./scripts/deploy-check.ps1 -SkipExpoDoctor",
+    "doctor:auth": "powershell -ExecutionPolicy Bypass -File ./scripts/check-supabase-auth.ps1",
+    "eas:env:preview": "eas env:list --environment preview",
+    "eas:env:production": "eas env:list --environment production",
+    "deploy:supabase:function": "npx supabase functions deploy ai-expense",
+    "build:android:preview": "eas build -p android --profile preview",
+    "build:android:production": "eas build -p android --profile production"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.0",
@@ -20,12 +29,15 @@
     "expo-av": "~16.0.8",
     "expo-constants": "~18.0.13",
     "expo-file-system": "~19.0.23",
+    "expo-font": "~14.0.12",
     "expo-image-picker": "~17.0.11",
     "expo-linking": "~8.0.12",
+    "expo-notifications": "~0.32.17",
     "expo-router": "~6.0.24",
     "expo-sharing": "~14.0.8",
     "expo-sqlite": "~16.0.10",
     "expo-status-bar": "~3.0.9",
+    "expo-web-browser": "~15.0.11",
     "nativewind": "^4.2.4",
     "react": "19.1.0",
     "react-dom": "19.1.0",
@@ -39,7 +51,6 @@
   },
   "devDependencies": {
     "@types/react": "~19.1.0",
-    "babel-preset-expo": "^55.0.21",
     "typescript": "~5.9.2"
   },
   "private": true

@@ -14,6 +14,7 @@ export type AddIntent = {
     note?: string | null;
     raw_text?: string | null;
     source?: string | null;
+    receipt_id?: string | null;
     created_at?: string | null;
   };
 };

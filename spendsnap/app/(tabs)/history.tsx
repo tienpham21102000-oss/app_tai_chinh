@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Alert, FlatList, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
-import { router } from "expo-router";
+import { router, useFocusEffect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
@@ -8,6 +8,7 @@ import * as Sharing from "expo-sharing";
 import { useTransactionsStore } from "../../stores/transactions";
 import { useI18n } from "../../utils/i18n";
 import { formatMoneyVnd } from "../../utils/money";
+import { categoryBgColor, categoryEmoji, categoryLabel } from "../../utils/categories";
 
 function toSafeString(value: unknown): string {
   if (value == null) return "";
@@ -234,7 +235,7 @@ export default function HistoryScreen() {
   const [calendarTarget, setCalendarTarget] = useState<"from" | "to" | null>(null);
   const [calendarMonth, setCalendarMonth] = useState(() => startOfDay(new Date()));
 
-  useEffect(() => { void refreshAll(); }, [refreshAll]);
+  useFocusEffect(useCallback(() => { void refreshAll(); }, [refreshAll]));
 
   const filtered = useMemo(() => {
     try {
@@ -398,10 +399,11 @@ export default function HistoryScreen() {
   function safeRenderItem(item: typeof transactions[number]) {
     try {
       const merchantText = toSafeString(item.merchant) || "Unspecified Merchant";
-      const categoryText = toSafeString(item.category) || "Uncategorized";
+      const categoryText = toSafeString(item.category);
+      const displayCategory = categoryText ? categoryLabel(categoryText, language) : t("uncategorized");
       const noteText     = toSafeString(item.note);
       const amountValue  = Number(item.amount || 0) || 0;
-      const emoji        = getCategoryEmoji(categoryText);
+      const emoji        = categoryEmoji(categoryText);
 
       return (
         <Pressable
@@ -411,7 +413,7 @@ export default function HistoryScreen() {
           style={({ pressed }) => [styles.transactionButton, pressed && { opacity: 0.75 }]}
         >
           <View style={{ flexDirection: "row", alignItems: "center", gap: 9, flex: 1, minWidth: 0 }}>
-            <View style={[styles.iconBox, { backgroundColor: getCategoryBgColor(categoryText) }]}>
+            <View style={[styles.iconBox, { backgroundColor: categoryBgColor(categoryText) }]}>
               <Text className="text-xl">{emoji}</Text>
             </View>
             <View style={{ flex: 1, minWidth: 0, gap: 3 }}>
@@ -420,7 +422,7 @@ export default function HistoryScreen() {
                 <Text className="text-sm font-black text-slate-900" numberOfLines={1}>-{formatMoneyVnd(amountValue)}</Text>
               </View>
               <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
-                <Text className="text-[10px] text-slate-400 font-bold uppercase tracking-wider" numberOfLines={1} style={{ flex: 1 }}>{categoryText}</Text>
+                <Text className="text-[10px] text-slate-400 font-bold uppercase tracking-wider" numberOfLines={1} style={{ flex: 1 }}>{displayCategory}</Text>
                 <Text className="text-[9px] text-slate-400" numberOfLines={1} style={{ maxWidth: 140 }}>
                   {noteText ? (noteText.length > 24 ? `${noteText.slice(0, 24)}...` : noteText) : t("noNote")}
                 </Text>
